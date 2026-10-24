@@ -1,0 +1,22 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body, #root { min-height: 100%; }
+html { -webkit-text-size-adjust: 100%; background: #F8F9F5; }
+body { margin: 0; color: #24332C; background: #F8F9F5; overflow-x: hidden; -webkit-tap-highlight-color: transparent; overscroll-behavior-y: none; }
+* { box-sizing: border-box; }
+button, input, textarea, select { font: inherit; }
+input, textarea, select { font-size: 16px; } /* avoid iOS zoom on focus */
+.pt-safe { padding-top: max(env(safe-area-inset-top), 0px); }
+.pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+.nav-pad { padding-bottom: calc(88px + env(safe-area-inset-bottom)); }
+@keyframes sheet-up { from { transform: translateY(100%); } to { transform: translateY(0); } }
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes pop { 0% { transform: scale(.6); opacity: 0 } 60% { transform: scale(1.1); opacity: 1 } 100% { transform: scale(1) } }
+.anim-sheet { animation: sheet-up .25s ease-out; }
+.anim-fade { animation: fade-in .2s ease-out; }
+.anim-pop { animation: pop .35s ease-out; }
+@media (prefers-reduced-motion: reduce) { .anim-sheet, .anim-fade, .anim-pop { animation: none; } }
+:focus-visible { outline: 3px solid #3A956C; outline-offset: 2px; }
+.recharts-wrapper, .recharts-surface { max-width: 100%; }
