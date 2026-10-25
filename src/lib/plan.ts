@@ -19,16 +19,19 @@ export interface Week {
   sessions: Session[]
 }
 
-export const TRAINING_START: ISODate = '2026-10-19'
+// Week 1 is a short intro week (Sat 17 Oct to Sun 25 Oct 2026) with a single 10 km long walk on Sat 24 Oct.
+// Weeks 2 to 20 are Monday-anchored from WEEK2_START (Tue easy, Thu steady, Sat long).
+export const TRAINING_START: ISODate = '2026-10-17'
+export const WEEK2_START: ISODate = '2026-10-26'
+export const INTRO_WALK_DATE: ISODate = '2026-10-24'
+export const INTRO_WALK_KM = 10
 export const EVENT_DATE: ISODate = '2027-03-06'
 export const EVENT_KM = 42
 export const TOTAL_WEEKS = 20
 export const RECOVERY_WEEKS = [5, 9, 13, 16, 18, 19]
 
-// [Tuesday, Thursday, Saturday] km for weeks 1-19; week 20 has Tue/Thu + the event.
-// Week 1 is the baseline week: its Saturday (24 Oct 2026) is the 10 km walk already done.
+// [Tuesday, Thursday, Saturday] km for weeks 2-19; week 20 has Tue/Thu + the event.
 const DISTANCES: [number, number, number][] = [
-  [4, 5, 10],
   [4, 5, 12], [5, 5, 13], [5, 6, 15], [4, 5, 10], [5, 7, 16], [6, 7, 18],
   [6, 8, 20], [4, 6, 13], [6, 8, 21], [6, 8, 23], [7, 9, 25], [5, 6, 16],
   [7, 9, 26], [7, 10, 28], [5, 7, 20], [7, 10, 32], [5, 7, 20], [4, 5, 12],
@@ -50,15 +53,21 @@ export const TYPE_HINT: Record<WalkType, string> = {
 }
 
 function buildWeeks(): Week[] {
-  const weeks: Week[] = []
-  for (let w = 1; w <= TOTAL_WEEKS; w++) {
-    const start = addDays(TRAINING_START, (w - 1) * 7)
+  const weeks: Week[] = [{
+    number: 1,
+    start: TRAINING_START,
+    end: addDays(WEEK2_START, -1),
+    recovery: false,
+    sessions: [{ id: 'w1-sat', week: 1, date: INTRO_WALK_DATE, type: 'long', plannedKm: INTRO_WALK_KM, isEvent: false }],
+  }]
+  for (let w = 2; w <= TOTAL_WEEKS; w++) {
+    const start = addDays(WEEK2_START, (w - 2) * 7)
     const tue = addDays(start, 1)
     const thu = addDays(start, 3)
     const sat = addDays(start, 5)
     const sessions: Session[] = []
     if (w < TOTAL_WEEKS) {
-      const [a, b, c] = DISTANCES[w - 1]
+      const [a, b, c] = DISTANCES[w - 2]
       sessions.push(
         { id: `w${w}-tue`, week: w, date: tue, type: 'easy', plannedKm: a, isEvent: false },
         { id: `w${w}-thu`, week: w, date: thu, type: 'steady', plannedKm: b, isEvent: false },

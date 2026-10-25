@@ -29,19 +29,6 @@ export function emptyData(): AppData {
   return { version: 1, displayName: '', entries: {}, weekNotes: {}, seenMilestones: [] }
 }
 
-/** The walk already done before the app was set up: Saturday 24 Oct 2026, 10 km (week 1 long walk). */
-export const SEED_ENTRIES: Record<string, Entry> = {
-  'w1-sat': { completed: true, actualKm: 10, completedAt: '2026-10-24', difficulty: 'moderate', notes: 'First 10 km done. Great start!' },
-}
-
-/** First-load data: empty diary with day one (the 24 Oct 10 km walk) already ticked off.
- *  Only used when nothing is saved on the device, so existing data is never overwritten. */
-export function initialData(): AppData {
-  const d = emptyData()
-  for (const [id, e] of Object.entries(SEED_ENTRIES)) if (SESSION_BY_ID[id]) d.entries[id] = { ...e }
-  return d
-}
-
 const num = (v: unknown, max: number): number | undefined =>
   typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= max ? v : undefined
 const str = (v: unknown, max = 5000): string | undefined =>
@@ -93,7 +80,7 @@ export function validateData(raw: unknown): AppData {
 export function loadData(): { data: AppData; error?: string } {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return { data: initialData() }
+    if (!raw) return { data: emptyData() }
     return { data: validateData(JSON.parse(raw)) }
   } catch (e) {
     // Keep a copy of anything unreadable so it is never silently lost.

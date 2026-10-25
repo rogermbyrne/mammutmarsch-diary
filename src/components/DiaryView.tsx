@@ -1,12 +1,11 @@
 import { ChevronLeft, ChevronRight, Leaf, NotebookPen, Printer } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { addDays, formatRange, parseISO } from '../lib/dates'
+import { addDays, dayName, daysBetween, formatRange, parseISO } from '../lib/dates'
 import { TOTAL_WEEKS, WEEKS, weekForDate } from '../lib/plan'
 import { effectiveDate, formatKm, isDone, sortedSessions, weekTotals } from '../lib/stats'
 import type { Diary } from '../lib/useDiary'
 import { Card, SessionRow } from './ui'
 
-const DOW = ['M', 'T', 'W', 'T', 'F', 'S', 'S']
 
 export function DiaryView({ diary, today, onOpen, onPrint }: { diary: Diary; today: string; onOpen: (id: string) => void; onPrint: () => void }) {
   const { data } = diary
@@ -21,7 +20,8 @@ export function DiaryView({ diary, today, onOpen, onPrint }: { diary: Diary; tod
   const { walkedKm, plannedKm: planned } = weekTotals(data, week)
   const doneCount = w.sessions.filter((s) => !s.isEvent && isDone(s, data)).length
   const trainingCount = w.sessions.filter((s) => !s.isEvent).length
-  const days = Array.from({ length: 7 }, (_, i) => addDays(w.start, i))
+  // Week 1 is a longer intro week (Sat 17 to Sun 25 Oct), so size the calendar to the week.
+  const days = Array.from({ length: daysBetween(w.start, w.end) + 1 }, (_, i) => addDays(w.start, i))
   const sessionDates = new Map(sessions.map((s) => [effectiveDate(s, data), s]))
 
   return (
@@ -77,18 +77,21 @@ export function DiaryView({ diary, today, onOpen, onPrint }: { diary: Diary; tod
             <Leaf size={16} /> {week >= 18 ? 'Taper week: ease off and let your legs freshen up.' : 'Recovery week: lighter walks so your body can adapt.'}
           </p>
         )}
+        {week === 1 && (
+          <p className="mt-3 rounded-xl bg-sage px-3 py-2 text-sm font-semibold text-forest">Intro week: one 10 km walk to get going. Tick it off once you have done it.</p>
+        )}
         {week === TOTAL_WEEKS && (
           <p className="mt-3 rounded-xl bg-lime/60 px-3 py-2 text-sm font-semibold text-forest">Race week! Two short walks, then the Mammutmarsch on Saturday.</p>
         )}
-        <div className="mt-4 grid grid-cols-7 gap-1" aria-label="Week calendar">
-          {days.map((d, i) => {
+        <div className="mt-4 grid gap-1" style={{ gridTemplateColumns: `repeat(${days.length}, minmax(0, 1fr))` }} aria-label="Week calendar">
+          {days.map((d) => {
             const s = sessionDates.get(d)
             const isToday = d === today
             const done = s && isDone(s, data)
             const missed = s && !done && d < today
             return (
               <div key={d} className={`flex flex-col items-center rounded-xl py-1.5 ${isToday ? 'bg-forest text-white' : ''}`} aria-current={isToday ? 'date' : undefined}>
-                <span className={`text-[0.7rem] font-semibold ${isToday ? 'text-white/80' : 'text-ink/50'}`}>{DOW[i]}</span>
+                <span className={`text-[0.7rem] font-semibold ${isToday ? 'text-white/80' : 'text-ink/50'}`}>{dayName(d).charAt(0)}</span>
                 <span className="text-sm font-bold">{parseISO(d).day}</span>
                 <span className={`mt-1 h-2 w-2 rounded-full ${!s ? 'bg-transparent' : s.isEvent ? 'bg-lime ring-1 ring-forest' : done ? 'bg-leaf' : missed ? 'bg-amber-line' : isToday ? 'bg-lime' : 'border border-ink/30'}`} />
               </div>

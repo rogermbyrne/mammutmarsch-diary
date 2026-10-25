@@ -1,11 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { ALL_SESSIONS, EVENT_DATE, EVENT_SESSION, FINAL_LONG_ID, SESSION_BY_ID, TOTAL_WEEKS, TRAINING_SESSIONS, TRAINING_START, WEEKS } from '../src/lib/plan'
+import { ALL_SESSIONS, EVENT_DATE, EVENT_SESSION, FINAL_LONG_ID, SESSION_BY_ID, TOTAL_WEEKS, TRAINING_SESSIONS, TRAINING_START, WEEKS, weekForDate } from '../src/lib/plan'
 import { dayName, todayBerlin } from '../src/lib/dates'
 import { computeStats, milestones, statusOf, upcomingSessions, computeStreak, kmFor, weekTotals, monthlyTotals, weeklyChart, longWalkChart, longWalkPace } from '../src/lib/stats'
-import { emptyData, initialData, loadData, saveData, STORAGE_KEY, validateData, exportPayload, type AppData } from '../src/lib/storage'
+import { emptyData, loadData, saveData, STORAGE_KEY, validateData, exportPayload, type AppData } from '../src/lib/storage'
 
 const EXPECTED: [string, number[]][] = [
-  ['2026-10-19', [4, 5, 10]],
   ['2026-10-26', [4, 5, 12]], ['2026-11-02', [5, 5, 13]], ['2026-11-09', [5, 6, 15]], ['2026-11-16', [4, 5, 10]],
   ['2026-11-23', [5, 7, 16]], ['2026-11-30', [6, 7, 18]], ['2026-12-07', [6, 8, 20]], ['2026-12-14', [4, 6, 13]],
   ['2026-12-21', [6, 8, 21]], ['2026-12-28', [6, 8, 23]], ['2027-01-04', [7, 9, 25]], ['2027-01-11', [5, 6, 16]],
@@ -14,28 +13,38 @@ const EXPECTED: [string, number[]][] = [
 ]
 
 describe('plan', () => {
-  it('has 20 weeks starting on the right Mondays with exact distances', () => {
+  it('has 20 weeks: an intro week, then Monday weeks 2 to 20 with exact distances', () => {
     expect(TOTAL_WEEKS).toBe(20)
-    expect(TRAINING_START).toBe('2026-10-19')
+    expect(TRAINING_START).toBe('2026-10-17')
     expect(WEEKS).toHaveLength(20)
-    WEEKS.forEach((w, i) => {
+    WEEKS.slice(1).forEach((w, i) => {
       expect(w.start).toBe(EXPECTED[i][0])
       expect(dayName(w.start)).toBe('Monday')
       expect(w.sessions.map((s) => s.plannedKm)).toEqual(EXPECTED[i][1])
       expect(w.sessions.map((s) => dayName(s.date))).toEqual(['Tuesday', 'Thursday', 'Saturday'])
     })
+    expect(WEEKS[1].start).toBe('2026-10-26')
   })
-  it('starts with the Sat 24 Oct 2026 10 km walk as week 1', () => {
-    const sat = WEEKS[0].sessions[2]
-    expect(sat.id).toBe('w1-sat')
-    expect(sat.date).toBe('2026-10-24')
-    expect(sat.plannedKm).toBe(10)
+  it('week 1 is Sat 17 Oct to Sun 25 Oct with one 10 km long walk on Sat 24 Oct', () => {
+    const w1 = WEEKS[0]
+    expect(w1.start).toBe('2026-10-17')
+    expect(dayName(w1.start)).toBe('Saturday')
+    expect(w1.end).toBe('2026-10-25')
+    expect(w1.sessions).toHaveLength(1)
+    expect(w1.sessions[0]).toMatchObject({ id: 'w1-sat', date: '2026-10-24', type: 'long', plannedKm: 10, isEvent: false })
+    expect(SESSION_BY_ID['w1-tue']).toBeUndefined()
+    expect(SESSION_BY_ID['w1-thu']).toBeUndefined()
+    expect(weekForDate('2026-10-10')).toBe(1)
+    expect(weekForDate('2026-10-17')).toBe(1)
+    expect(weekForDate('2026-10-25')).toBe(1)
+    expect(weekForDate('2026-10-26')).toBe(2)
+    expect(weekForDate('2027-03-06')).toBe(20)
     expect(FINAL_LONG_ID).toBe('w19-sat')
     expect(SESSION_BY_ID[FINAL_LONG_ID].date).toBe('2027-02-27')
   })
-  it('has 59 training walks and the event on Sat 6 Mar 2027', () => {
-    expect(TRAINING_SESSIONS).toHaveLength(59)
-    expect(ALL_SESSIONS).toHaveLength(60)
+  it('has 57 training walks and the event on Sat 6 Mar 2027', () => {
+    expect(TRAINING_SESSIONS).toHaveLength(57)
+    expect(ALL_SESSIONS).toHaveLength(58)
     expect(EVENT_SESSION.date).toBe('2027-03-06')
     expect(EVENT_SESSION.date).toBe(EVENT_DATE)
     expect(EVENT_SESSION.week).toBe(20)
@@ -59,14 +68,15 @@ describe('stats', () => {
   const done = (d: AppData, id: string, actualKm?: number) => { d.entries[id] = { completed: true, actualKm } }
   it('counts, overrides with actual distance, and excludes the event from training stats', () => {
     const d = emptyData()
-    done(d, 'w1-tue') // planned 4
+    done(d, 'w2-tue') // planned 4
     done(d, 'w1-sat', 14) // actual overrides 10
     done(d, 'event', 43)
     const s = computeStats(d, '2026-11-01')
     expect(s.completed).toBe(2)
+    expect(s.total).toBe(57)
     expect(s.trainingKm).toBe(18)
     expect(s.totalKm).toBe(61)
-    expect(s.percent).toBe(3)
+    expect(s.percent).toBe(4)
     expect(s.longestKm).toBe(14)
     d.entries['w1-sat'].completed = false
     expect(computeStats(d, '2026-11-01').completed).toBe(1)
@@ -87,10 +97,11 @@ describe('stats', () => {
   })
   it('streak and upcoming', () => {
     const d = emptyData()
-    done(d, 'w1-tue'); done(d, 'w1-thu')
-    expect(computeStreak(d, '2026-10-24')).toBe(2) // today's Sat not done yet does not break it
-    expect(computeStreak(d, '2026-10-25')).toBe(0)
+    done(d, 'w2-tue'); done(d, 'w2-thu')
+    expect(computeStreak(d, '2026-10-31')).toBe(2) // today's Sat not done yet does not break it
+    expect(computeStreak(d, '2026-11-01')).toBe(0)
     expect(upcomingSessions(d, '2026-10-24')[0].id).toBe('w1-sat')
+    expect(upcomingSessions(d, '2026-10-25')[0].id).toBe('w2-sat')
   })
   it('validates import data and round-trips export', () => {
     const d = emptyData(); done(d, 'w2-sat', 13.5); d.displayName = 'Anna'
@@ -140,7 +151,7 @@ describe('actual distance overrides planned in every total', () => {
   })
 })
 
-describe('first-load seed (24 Oct 10 km walk)', () => {
+describe('first load and saved data', () => {
   const store: Record<string, string> = {}
   ;(globalThis as unknown as { localStorage: Storage }).localStorage = {
     getItem: (k: string) => (k in store ? store[k] : null),
@@ -149,26 +160,27 @@ describe('first-load seed (24 Oct 10 km walk)', () => {
     clear: () => { for (const k of Object.keys(store)) delete store[k] },
     key: () => null, length: 0,
   } as Storage
-  it('seeds week 1 Saturday as completed only when nothing is saved', () => {
+  it('first load has no completed walks (week 1 walk is left for her to tick)', () => {
     localStorage.clear()
     const { data } = loadData()
-    expect(data.entries['w1-sat']).toMatchObject({ completed: true, actualKm: 10, completedAt: '2026-10-24', difficulty: 'moderate' })
-    expect(Object.keys(data.entries)).toEqual(['w1-sat'])
-    expect(computeStats(data, '2026-10-26')).toMatchObject({ completed: 1, trainingKm: 10, longestKm: 10 })
-    expect(milestones(data).find((m) => m.id === 'first')!.unlocked).toBe(true)
-    expect(validateData(JSON.parse(exportPayload(initialData())))).toEqual(initialData())
+    expect(data).toEqual(emptyData())
+    expect(Object.values(data.entries).filter((e) => e.completed)).toHaveLength(0)
+    expect(computeStats(data, '2026-10-25')).toMatchObject({ completed: 0, total: 57, trainingKm: 0 })
+    expect(statusOf(SESSION_BY_ID['w1-sat'], data, '2026-10-25')).toBe('missed')
+  })
+  it('ticking the week 1 walk adds 10 km to the totals', () => {
+    const d = emptyData(); d.entries['w1-sat'] = { completed: true }
+    expect(computeStats(d, '2026-10-25')).toMatchObject({ completed: 1, trainingKm: 10, longestKm: 10 })
+    expect(weekTotals(d, 1)).toEqual({ walkedKm: 10, plannedKm: 10 })
+    expect(monthlyTotals(d).find((m) => m.key === '2026-10')!.walkedKm).toBe(10)
   })
   it('never overwrites existing saved data', () => {
     localStorage.clear()
     const mine = emptyData(); mine.entries['w2-tue'] = { completed: true, actualKm: 4.5 }; mine.displayName = 'Andrea'
     saveData(mine)
     const { data } = loadData()
-    expect(data.entries['w1-sat']).toBeUndefined()
     expect(data.entries['w2-tue']).toMatchObject({ completed: true, actualKm: 4.5 })
     expect(data.displayName).toBe('Andrea')
     expect(localStorage.getItem(STORAGE_KEY)).toBe(JSON.stringify(mine))
-  })
-  it('emptyData stays empty (used by Reset)', () => {
-    expect(emptyData().entries).toEqual({})
   })
 })
