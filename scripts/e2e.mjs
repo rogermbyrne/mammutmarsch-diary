@@ -36,23 +36,27 @@ await page.evaluate(() => localStorage.clear()); await page.reload({ waitUntil: 
 let t = await text()
 if (!t.includes('My Mammutmarsch Diary')) fail('title missing')
 if (!t.includes('42 km · Leipzig · 6 March 2027')) fail('subtitle missing')
-if (!/0\s*\/56/.test(t)) fail('0/56 missing')
+// First load seeds day one: the Sat 24 Oct 2026 10 km walk is already completed.
+if (!/1\s*\/59/.test(t)) fail('seeded 1/59 missing')
+const seed = await page.evaluate(() => JSON.parse(localStorage.getItem('mammutmarsch-diary-v1') || 'null'))
+if (seed && (!seed.entries['w1-sat'] || seed.entries['w1-sat'].actualKm !== 10)) fail('seed not saved as w1-sat 10 km')
 await overflow('today'); await page.screenshot({ path: `${shots}/${tag}-today.png`, fullPage: true })
 // complete next walk
 await clickText('button', 'Mark Complete')
 t = await text()
 if (!t.includes('Well done')) fail('confirmation not shown')
 const isEventDay = FAKE && FAKE.startsWith('2027-03-06')
-if (isEventDay ? !t.includes('42km') && !t.includes('42\nkm') : !/1\s*\/56/.test(t)) fail('dashboard not updated')
+// on event day the event is ticked: walked = seeded 10 km + 42 km
+if (isEventDay ? !t.includes('52km') && !t.includes('52\nkm') : !/2\s*\/59/.test(t)) fail('dashboard not updated')
 await page.screenshot({ path: `${shots}/${tag}-today-done.png`, fullPage: true })
 // persistence
 await page.reload({ waitUntil: 'networkidle0' })
 t = await text()
 const persisted = await page.evaluate(() => Object.values(JSON.parse(localStorage.getItem('mammutmarsch-diary-v1')).entries).filter((e) => e.completed).length)
-if (persisted !== 1) fail('not persisted after reload')
+if (persisted !== 2) fail('not persisted after reload (expected seed + 1)')
 // undo: reset storage for the diary part
 await page.evaluate(() => localStorage.clear()); await page.reload({ waitUntil: 'networkidle0' })
-if (!/0\s*\/56/.test(await text())) fail('reset did not update stats')
+if (!/1\s*\/59/.test(await text())) fail('reset did not return to the seeded 1/59')
 // diary
 await clickText('nav button', 'Diary')
 await overflow('diary'); await page.screenshot({ path: `${shots}/${tag}-diary.png`, fullPage: true })
@@ -71,14 +75,24 @@ await clickText('button', 'Save details')
 await page.keyboard.press('Escape'); await new Promise((r) => setTimeout(r, 200))
 await clickText('nav button', 'Progress')
 t = await text()
-if (!t.includes('7.5 km')) fail('actual distance not reflected in progress')
+// training distance = seeded 10 km + 7.5 km actual (planned would be 14)
+if (!t.includes('17.5 km')) fail('actual distance not reflected in progress totals')
 await overflow('progress'); await page.screenshot({ path: `${shots}/${tag}-progress.png`, fullPage: true })
-// navigate all weeks
+// week 1 shows the seeded Sat 24 Oct walk as completed
 await clickText('nav button', 'Diary')
+for (let i = 0; i < 20; i++) { const b = await page.$('button[aria-label="Previous week"]:not([disabled])'); if (!b) break; await b.click() }
+t = await text()
+if (!t.includes('Week 1 of 20')) fail('week 1 missing')
+if (!/Sat 24 Oct/i.test(t)) fail('Sat 24 Oct missing in week 1')
+const w1sat = await page.evaluate(() => [...document.querySelectorAll('[role=checkbox]')].map((c) => c.getAttribute('aria-checked')))
+if (w1sat[2] !== 'true') fail('week 1 Saturday not shown completed: ' + JSON.stringify(w1sat))
+if (!/\b(10|17\.5) km walked/.test(t)) fail('week 1 walked total missing')
+await overflow('week1'); await page.screenshot({ path: `${shots}/${tag}-week1.png`, fullPage: true })
+// navigate all weeks
 for (let i = 0; i < 20; i++) { const b = await page.$('button[aria-label="Next week"]:not([disabled])'); if (!b) break; await b.click() }
 t = await text()
-if (!t.includes('Week 19 of 19') || !t.includes('Mammutmarsch Leipzig')) fail('week 19 / event missing')
-await overflow('week19'); await page.screenshot({ path: `${shots}/${tag}-week19.png`, fullPage: true })
+if (!t.includes('Week 20 of 20') || !t.includes('Mammutmarsch Leipzig') || !/Sat 6 Mar/i.test(t)) fail('week 20 / event on Sat 6 Mar missing')
+await overflow('week20'); await page.screenshot({ path: `${shots}/${tag}-week20.png`, fullPage: true })
 await clickText('nav button', 'Settings')
 await overflow('settings'); await page.screenshot({ path: `${shots}/${tag}-settings.png`, fullPage: true })
 // offline (prod only, after SW active)

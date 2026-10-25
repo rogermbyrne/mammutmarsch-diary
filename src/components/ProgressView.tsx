@@ -1,7 +1,8 @@
 import { Award, Clock, Flame, Footprints, Lock, Mountain, Route, Timer, TrendingUp } from 'lucide-react'
 import { Bar, BarChart, CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { EVENT_KM } from '../lib/plan'
-import { computeStats, formatDuration, formatKm, longWalkChart, longWalkPace, milestones, weeklyChart } from '../lib/stats'
+import { monthName } from '../lib/dates'
+import { computeStats, formatDuration, formatKm, longWalkChart, longWalkPace, milestones, monthlyTotals, weeklyChart } from '../lib/stats'
 import type { Diary } from '../lib/useDiary'
 import { Card, SectionTitle } from './ui'
 
@@ -14,6 +15,7 @@ export function ProgressView({ diary, today }: { diary: Diary; today: string }) 
   const longs = longWalkChart(data)
   const ms = milestones(data)
   const pace = longWalkPace(data)
+  const months = monthlyTotals(data)
   const unlocked = ms.filter((m) => m.unlocked).length
 
   return (
@@ -61,6 +63,22 @@ export function ProgressView({ diary, today }: { diary: Diary; today: string }) 
             </BarChart>
           </ResponsiveContainer>
         </div>
+      </Card>
+
+      <SectionTitle>Monthly distance</SectionTitle>
+      <Card className="p-4">
+        <p className="mb-3 text-sm text-ink/70">What you actually walked each month, with the plan for reference</p>
+        <ul className="divide-y divide-ink/10">
+          {months.map((m) => (
+            <li key={m.key} className="flex items-center justify-between gap-3 py-2">
+              <span className="font-semibold text-forest">{monthName(m.month)} {m.year}</span>
+              <span className="text-right">
+                <span className="font-bold text-forest">{formatKm(m.walkedKm)} km</span>
+                <span className="ml-1 text-xs text-ink/60">of {formatKm(m.plannedKm)} planned</span>
+              </span>
+            </li>
+          ))}
+        </ul>
       </Card>
 
       <SectionTitle>Long-walk progression</SectionTitle>

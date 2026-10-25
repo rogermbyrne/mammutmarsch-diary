@@ -2,7 +2,7 @@ import { ChevronLeft, ChevronRight, Leaf, NotebookPen, Printer } from 'lucide-re
 import { useEffect, useState } from 'react'
 import { addDays, formatRange, parseISO } from '../lib/dates'
 import { TOTAL_WEEKS, WEEKS, weekForDate } from '../lib/plan'
-import { effectiveDate, formatKm, isDone, sortedSessions } from '../lib/stats'
+import { effectiveDate, formatKm, isDone, sortedSessions, weekTotals } from '../lib/stats'
 import type { Diary } from '../lib/useDiary'
 import { Card, SessionRow } from './ui'
 
@@ -18,7 +18,7 @@ export function DiaryView({ diary, today, onOpen, onPrint }: { diary: Diary; tod
 
   // Sessions belong to their original week; a rescheduled walk still shows here with its new date.
   const sessions = sortedSessions(data).filter((s) => s.week === week)
-  const planned = w.sessions.filter((s) => !s.isEvent).reduce((a, s) => a + s.plannedKm, 0)
+  const { walkedKm, plannedKm: planned } = weekTotals(data, week)
   const doneCount = w.sessions.filter((s) => !s.isEvent && isDone(s, data)).length
   const trainingCount = w.sessions.filter((s) => !s.isEvent).length
   const days = Array.from({ length: 7 }, (_, i) => addDays(w.start, i))
@@ -68,12 +68,13 @@ export function DiaryView({ diary, today, onOpen, onPrint }: { diary: Diary; tod
           </div>
           <div className="text-right">
             <p className="text-lg font-extrabold text-forest">{doneCount}/{trainingCount}</p>
-            <p className="text-xs text-ink/60">{formatKm(planned)} km planned</p>
+            <p className="text-xs font-semibold text-forest">{formatKm(walkedKm)} km walked</p>
+            <p className="text-xs text-ink/60">of {formatKm(planned)} km planned</p>
           </div>
         </div>
         {w.recovery && (
           <p className="mt-3 flex items-center gap-2 rounded-xl bg-sage px-3 py-2 text-sm font-semibold text-forest">
-            <Leaf size={16} /> {week >= 17 ? 'Taper week: ease off and let your legs freshen up.' : 'Recovery week: lighter walks so your body can adapt.'}
+            <Leaf size={16} /> {week >= 18 ? 'Taper week: ease off and let your legs freshen up.' : 'Recovery week: lighter walks so your body can adapt.'}
           </p>
         )}
         {week === TOTAL_WEEKS && (

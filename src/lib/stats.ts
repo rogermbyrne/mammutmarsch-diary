@@ -1,7 +1,7 @@
 import type { ISODate } from './dates'
 import { daysBetween } from './dates'
 import {
-  ALL_SESSIONS, EVENT_DATE, EVENT_SESSION, FINAL_LONG_ID, TRAINING_SESSIONS, WEEKS, type Session,
+  ALL_SESSIONS, EVENT_DATE, EVENT_SESSION, FINAL_LONG_ID, SESSION_BY_ID, TRAINING_SESSIONS, WEEKS, type Session,
 } from './plan'
 import type { AppData, Entry } from './storage'
 
@@ -9,6 +9,8 @@ export type Status = 'completed' | 'upcoming' | 'today' | 'missed'
 
 export const effectiveDate = (s: Session, data: AppData): ISODate => data.entries[s.id]?.rescheduledDate ?? s.date
 export const isDone = (s: Session, data: AppData): boolean => data.entries[s.id]?.completed === true
+/** Distance that counts toward every total: the logged actual km for a completed walk,
+ *  falling back to the planned km only if no actual was logged. Not completed counts 0. */
 export const kmFor = (s: Session, e: Entry | undefined): number =>
   e?.completed ? (typeof e.actualKm === 'number' ? e.actualKm : s.plannedKm) : 0
 
@@ -128,8 +130,8 @@ export function milestones(data: AppData): Milestone[] {
     { id: 'km20', title: 'First 20 km walk', detail: 'Recorded a walk of 20 km or more.', unlocked: maxKm >= 20 },
     { id: 'km25', title: 'First 25 km walk', detail: 'Recorded a walk of 25 km or more.', unlocked: maxKm >= 25 },
     { id: 'km30', title: 'First 30 km walk', detail: 'Recorded a walk of 30 km or more.', unlocked: maxKm >= 30 },
-    { id: 'half', title: 'Halfway there', detail: 'Completed 50% of your training walks (28 of 56).', unlocked: done.length >= TRAINING_SESSIONS.length / 2 },
-    { id: 'finallong', title: 'Final long walk done', detail: 'Completed the last long training walk (Week 18).', unlocked: isDone(ALL_SESSIONS.find((s) => s.id === FINAL_LONG_ID)!, data) },
+    { id: 'half', title: 'Halfway there', detail: `Completed 50% of your training walks (${Math.ceil(TRAINING_SESSIONS.length / 2)} of ${TRAINING_SESSIONS.length}).`, unlocked: done.length >= TRAINING_SESSIONS.length / 2 },
+    { id: 'finallong', title: 'Final long walk done', detail: `Completed the last long training walk (Week ${SESSION_BY_ID[FINAL_LONG_ID].week}).`, unlocked: isDone(ALL_SESSIONS.find((s) => s.id === FINAL_LONG_ID)!, data) },
     { id: 'finish', title: 'Mammutmarsch finisher', detail: 'You walked the 42 km Mammutmarsch Leipzig!', unlocked: isDone(EVENT_SESSION, data) },
   ]
 }
@@ -155,4 +157,29 @@ export function formatDuration(min: number): string {
 
 export function formatKm(n: number): string {
   return Number.isInteger(n) ? String(n) : n.toFixed(1)
+}
+
+/** Walked (actual) and planned training km for one plan week. */
+export function weekTotals(data: AppData, week: number): { walkedKm: number; plannedKm: number } {
+  const training = WEEKS[week - 1].sessions.filter((s) => !s.isEvent)
+  return {
+    walkedKm: round1(training.reduce((a, s) => a + kmFor(s, data.entries[s.id]), 0)),
+    plannedKm: training.reduce((a, s) => a + s.plannedKm, 0),
+  }
+}
+
+export interface MonthRow { key: string; year: number; month: number; walkedKm: number; plannedKm: number; walks: number }
+
+/** Walked (actual) vs planned km per calendar month, by the date each walk was done (or is scheduled). Includes the event. */
+export function monthlyTotals(data: AppData): MonthRow[] {
+  const rows = new Map<string, MonthRow>()
+  for (const s of sortedSessions(data)) {
+    const d = effectiveDate(s, data)
+    const key = d.slice(0, 7)
+    const row = rows.get(key) ?? { key, year: Number(d.slice(0, 4)), month: Number(d.slice(5, 7)), walkedKm: 0, plannedKm: 0, walks: 0 }
+    row.plannedKm += s.plannedKm
+    if (isDone(s, data)) { row.walkedKm = round1(row.walkedKm + kmFor(s, data.entries[s.id])); row.walks++ }
+    rows.set(key, row)
+  }
+  return [...rows.values()].sort((a, b) => (a.key < b.key ? -1 : 1))
 }

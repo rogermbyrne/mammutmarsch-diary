@@ -12,7 +12,8 @@ export function WalkSheet({ id, diary, today, onClose }: { id: string; diary: Di
   const e = diary.data.entries[id]
   const status = statusOf(s, diary.data, today)
   const done = status === 'completed'
-  const [km, setKm] = useState(e?.actualKm !== undefined ? String(e.actualKm) : '')
+  // Prefilled with the actual km if logged, otherwise the planned km, so she only edits it when she walked a different distance.
+  const [km, setKm] = useState(String(e?.actualKm ?? s.plannedKm))
   const [hours, setHours] = useState(e?.durationMin ? String(Math.floor(e.durationMin / 60)) : '')
   const [mins, setMins] = useState(e?.durationMin ? String(e.durationMin % 60) : '')
   const [difficulty, setDifficulty] = useState<Difficulty | undefined>(e?.difficulty)
@@ -33,6 +34,14 @@ export function WalkSheet({ id, diary, today, onClose }: { id: string; diary: Di
 
   // Keep the distance field in sync when completion sets the default actual distance.
   useEffect(() => { if (done && km === '' && e?.actualKm !== undefined) setKm(String(e.actualKm)) }, [done, e?.actualKm]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const kmNum = Number(km.replace(',', '.'))
+  const kmValid = km.trim() !== '' && Number.isFinite(kmNum)
+  const diff = kmValid ? Math.round((kmNum - s.plannedKm) * 100) / 100 : 0
+  const step = (delta: number) => {
+    const base = kmValid ? kmNum : s.plannedKm
+    setKm(String(Math.max(0, Math.round((base + delta) * 10) / 10)))
+  }
 
   const parse = (): { ok: true; patch: Parameters<Diary['setEntry']>[1] } | { ok: false; msg: string } => {
     const kmVal = km.trim() === '' ? undefined : Number(km.replace(',', '.'))
@@ -107,10 +116,21 @@ export function WalkSheet({ id, diary, today, onClose }: { id: string; diary: Di
           )}
 
           <div className="mt-6 space-y-5">
-            <Field label="Actual distance (km)" htmlFor="km">
-              <input id="km" inputMode="decimal" value={km} placeholder={done ? String(s.plannedKm) : `e.g. ${s.plannedKm}`} onChange={(ev) => setKm(ev.target.value)}
-                className="h-12 w-full rounded-xl border border-ink/15 bg-white px-3" />
-              {!done && <p className="mt-1 text-xs text-ink/60">Leave empty to use the planned {formatKm(s.plannedKm)} km when you mark it complete.</p>}
+            <Field label="Actual distance walked (km)" htmlFor="km">
+              <div className="flex items-center gap-2">
+                <button type="button" onClick={() => step(-0.5)} aria-label="Half a kilometre less"
+                  className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-white text-xl font-bold text-forest ring-1 ring-ink/15">-</button>
+                <input id="km" inputMode="decimal" value={km} placeholder={String(s.plannedKm)} onChange={(ev) => setKm(ev.target.value)}
+                  className="h-12 w-full min-w-0 rounded-xl border border-ink/15 bg-white px-3 text-center text-lg font-bold" />
+                <button type="button" onClick={() => step(0.5)} aria-label="Half a kilometre more"
+                  className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-white text-xl font-bold text-forest ring-1 ring-ink/15">+</button>
+              </div>
+              <p className="mt-1 text-xs text-ink/60">
+                Planned {formatKm(s.plannedKm)} km.{' '}
+                {diff > 0 ? <strong className="text-leaf">{formatKm(diff)} km more than planned. Brilliant!</strong>
+                  : diff < 0 ? <span>{formatKm(-diff)} km less than planned.</span>
+                  : <span>Change it if you walked a different distance. Your totals use what you actually walked.</span>}
+              </p>
             </Field>
 
             <div>

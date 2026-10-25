@@ -1,7 +1,7 @@
 import { formatRange, formatShort } from '../lib/dates'
 import { TYPE_LABEL, WEEKS } from '../lib/plan'
 import type { AppData } from '../lib/storage'
-import { effectiveDate, formatKm, isDone } from '../lib/stats'
+import { effectiveDate, formatKm, isDone, kmFor } from '../lib/stats'
 
 /** Hidden on screen; shown only when printing. */
 export function PrintSchedule({ data }: { data: AppData }) {
@@ -20,7 +20,7 @@ export function PrintSchedule({ data }: { data: AppData }) {
               <td className="pr-2">{formatRange(w.start, w.end)}</td>
               <td>
                 {w.sessions.map((s) => (
-                  <div key={s.id}>{isDone(s, data) ? '☑' : '☐'} {formatShort(effectiveDate(s, data))}: {TYPE_LABEL[s.type]} {formatKm(s.plannedKm)} km</div>
+                  <div key={s.id}>{isDone(s, data) ? '☑' : '☐'} {formatShort(effectiveDate(s, data))}: {TYPE_LABEL[s.type]} {formatKm(s.plannedKm)} km{isDone(s, data) && kmFor(s, data.entries[s.id]) !== s.plannedKm ? ` (walked ${formatKm(kmFor(s, data.entries[s.id]))} km)` : ''}</div>
                 ))}
               </td>
             </tr>

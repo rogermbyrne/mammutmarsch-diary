@@ -19,19 +19,21 @@ export interface Week {
   sessions: Session[]
 }
 
-export const TRAINING_START: ISODate = '2026-10-26'
+export const TRAINING_START: ISODate = '2026-10-19'
 export const EVENT_DATE: ISODate = '2027-03-06'
 export const EVENT_KM = 42
-export const TOTAL_WEEKS = 19
-export const RECOVERY_WEEKS = [4, 8, 12, 15, 17, 18]
+export const TOTAL_WEEKS = 20
+export const RECOVERY_WEEKS = [5, 9, 13, 16, 18, 19]
 
-// [Tuesday, Thursday, Saturday] km for weeks 1-18; week 19 has Tue/Thu + the event.
+// [Tuesday, Thursday, Saturday] km for weeks 1-19; week 20 has Tue/Thu + the event.
+// Week 1 is the baseline week: its Saturday (24 Oct 2026) is the 10 km walk already done.
 const DISTANCES: [number, number, number][] = [
+  [4, 5, 10],
   [4, 5, 12], [5, 5, 13], [5, 6, 15], [4, 5, 10], [5, 7, 16], [6, 7, 18],
   [6, 8, 20], [4, 6, 13], [6, 8, 21], [6, 8, 23], [7, 9, 25], [5, 6, 16],
   [7, 9, 26], [7, 10, 28], [5, 7, 20], [7, 10, 32], [5, 7, 20], [4, 5, 12],
 ]
-const WEEK19: [number, number] = [3, 3]
+const RACE_WEEK: [number, number] = [3, 3]
 
 export const TYPE_LABEL: Record<WalkType, string> = {
   easy: 'Easy walk',
@@ -64,8 +66,8 @@ function buildWeeks(): Week[] {
       )
     } else {
       sessions.push(
-        { id: `w${w}-tue`, week: w, date: tue, type: 'easy', plannedKm: WEEK19[0], isEvent: false },
-        { id: `w${w}-thu`, week: w, date: thu, type: 'steady', plannedKm: WEEK19[1], isEvent: false },
+        { id: `w${w}-tue`, week: w, date: tue, type: 'easy', plannedKm: RACE_WEEK[0], isEvent: false },
+        { id: `w${w}-thu`, week: w, date: thu, type: 'steady', plannedKm: RACE_WEEK[1], isEvent: false },
         { id: 'event', week: w, date: sat, type: 'event', plannedKm: EVENT_KM, isEvent: true },
       )
     }
@@ -79,7 +81,7 @@ export const ALL_SESSIONS: Session[] = WEEKS.flatMap((w) => w.sessions)
 export const TRAINING_SESSIONS: Session[] = ALL_SESSIONS.filter((s) => !s.isEvent)
 export const EVENT_SESSION: Session = ALL_SESSIONS.find((s) => s.isEvent)!
 export const SESSION_BY_ID: Record<string, Session> = Object.fromEntries(ALL_SESSIONS.map((s) => [s.id, s]))
-export const FINAL_LONG_ID = 'w18-sat'
+export const FINAL_LONG_ID = 'w19-sat'
 
 export function weekForDate(d: ISODate): number {
   if (d < TRAINING_START) return 1
