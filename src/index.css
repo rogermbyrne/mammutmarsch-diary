@@ -20,3 +20,14 @@ input, textarea, select { font-size: 16px; } /* avoid iOS zoom on focus */
 @media (prefers-reduced-motion: reduce) { .anim-sheet, .anim-fade, .anim-pop { animation: none; } }
 :focus-visible { outline: 3px solid #3A956C; outline-offset: 2px; }
 .recharts-wrapper, .recharts-surface { max-width: 100%; }
+/* Celebrations (see src/lib/celebrate.ts) */
+.celebrate-ring { position: fixed; z-index: 70; width: 56px; height: 56px; margin: -28px 0 0 -28px; border-radius: 9999px; border: 3px solid #3A956C; pointer-events: none; animation: celebrate-ring .6s ease-out forwards; }
+.celebrate-ring-gentle { animation: celebrate-glow .8s ease-out forwards; background: rgba(196,234,164,.45); border-color: rgba(58,149,108,.5); }
+@keyframes celebrate-ring { from { transform: scale(.4); opacity: .9 } to { transform: scale(1.6); opacity: 0 } }
+@keyframes celebrate-glow { 0% { opacity: 0 } 30% { opacity: 1 } 100% { opacity: 0 } }
+.celebrate-msg { position: fixed; z-index: 71; left: 50%; top: calc(env(safe-area-inset-top) + 18px); transform: translateX(-50%); max-width: 90%; width: max-content; padding: 10px 18px; border-radius: 9999px; background: #193D35; color: #fff; font-weight: 700; font-size: 15px; text-align: center; box-shadow: 0 6px 20px rgba(25,61,53,.25); pointer-events: none; animation: celebrate-msg 2.8s ease-out forwards; }
+.celebrate-msg-finish { background: #C4EAA4; color: #193D35; font-size: 17px; animation-duration: 4.2s; }
+@keyframes celebrate-msg { 0% { opacity: 0; transform: translate(-50%, -8px) } 10% { opacity: 1; transform: translate(-50%, 0) } 85% { opacity: 1 } 100% { opacity: 0 } }
+@media (prefers-reduced-motion: reduce) { .celebrate-msg { animation-name: fade-in-out; } }
+@keyframes fade-in-out { 0% { opacity: 0 } 10% { opacity: 1 } 85% { opacity: 1 } 100% { opacity: 0 } }
+@media print { .celebrate-msg, .celebrate-ring { display: none; } }

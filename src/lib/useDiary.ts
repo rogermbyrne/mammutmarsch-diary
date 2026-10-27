@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { emptyData, loadData, saveData, type AppData, type Entry } from './storage'
 import { SESSION_BY_ID } from './plan'
 import { todayBerlin } from './dates'
+import { celebrationFor } from './stats'
+import { celebrate, currentOrigin, trackPointer } from './celebrate'
 
 export function useDiary() {
   const initial = useRef(loadData())
@@ -13,6 +15,22 @@ export function useDiary() {
     if (first.current) { first.current = false; return }
     const err = saveData(data)
     setError(err)
+  }, [data])
+
+  // Celebrate fresh ticks made by her (never on undo, import or reset).
+  const prevData = useRef(data)
+  const pending = useRef(new Map<string, { x: number; y: number }>())
+  useEffect(() => { trackPointer() }, [])
+  useEffect(() => {
+    const before = prevData.current
+    prevData.current = data
+    for (const [id, origin] of pending.current) {
+      if (data.entries[id]?.completed && !before.entries[id]?.completed) {
+        const c = celebrationFor(id, before, data)
+        try { celebrate(c.level, { origin, text: c.text }) } catch { /* never let a celebration break the diary */ }
+      }
+    }
+    pending.current.clear()
   }, [data])
 
   useEffect(() => {
@@ -32,6 +50,7 @@ export function useDiary() {
   }, [update])
 
   const complete = useCallback((id: string) => {
+    pending.current.set(id, currentOrigin())
     update((d) => {
       const prev: Entry = d.entries[id] ?? { completed: false }
       const s = SESSION_BY_ID[id]

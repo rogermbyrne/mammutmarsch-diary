@@ -183,3 +183,25 @@ export function monthlyTotals(data: AppData): MonthRow[] {
   }
   return [...rows.values()].sort((a, b) => (a.key < b.key ? -1 : 1))
 }
+
+export interface CelebrationInfo { level: 'small' | 'big' | 'finish'; text?: string }
+
+/** Decide how big a celebration a fresh tick deserves, comparing the data just before and just after it. */
+export function celebrationFor(id: string, before: AppData, after: AppData): CelebrationInfo {
+  const s = SESSION_BY_ID[id]
+  if (!s) return { level: 'small' }
+  if (s.isEvent) return { level: 'finish', text: 'Mammutmarsch finisher! 42 km. You did it!' }
+  const prevUnlocked = new Set(milestones(before).filter((m) => m.unlocked).map((m) => m.id))
+  const fresh = milestones(after).filter((m) => m.unlocked && !prevUnlocked.has(m.id) && m.id !== 'first')
+  if (fresh.length) return { level: 'big', text: `${fresh[fresh.length - 1].title}!` }
+  const week = WEEKS[s.week - 1]
+  const training = week.sessions.filter((x) => !x.isEvent)
+  if (training.length > 1 && training.every((x) => isDone(x, after)) && !training.every((x) => isDone(x, before))) {
+    return { level: 'big', text: `Week ${s.week} complete!` }
+  }
+  const prevKms = TRAINING_SESSIONS.filter((x) => x.id !== id && isDone(x, before)).map((x) => kmFor(x, before.entries[x.id]))
+  const km = kmFor(s, after.entries[id])
+  if (prevKms.length && km > Math.max(...prevKms)) return { level: 'big', text: `New longest walk: ${formatKm(km)} km!` }
+  if (TRAINING_SESSIONS.filter((x) => isDone(x, before)).length === 0) return { level: 'big', text: 'First walk done!' }
+  return { level: 'small' }
+}

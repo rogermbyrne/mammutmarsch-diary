@@ -10,6 +10,7 @@ Live: https://rogermbyrne.github.io/mammutmarsch-diary/
 
 - React + TypeScript + Vite + Tailwind CSS + Lucide + Recharts
 - Data is stored only in the browser (localStorage) on the device. No backend, no account, no tracking.
+- Ticking a walk off plays a small confetti burst; finishing a week, a new longest walk, a distance milestone or the event itself gets a bigger celebration (src/lib/celebrate.ts, no dependencies, reduced-motion aware, short haptic where supported).
 - Export / import a JSON backup from Settings.
 - Works offline after the first visit (service worker) and can be added to the iPhone home screen.
 
@@ -20,5 +21,6 @@ npm run dev       # local dev
 npm test          # plan / stats unit tests
 npm run build     # production build into dist/
 node scripts/e2e.mjs http://localhost:4173/ [fake-ISO-datetime]   # headless smoke test (needs Chrome)
+node scripts/celebrate-e2e.mjs http://localhost:4173/              # celebration check, saves celebration-*.png
 ```
 The `docs/` folder holds the built site served by GitHub Pages (main branch, /docs).
