@@ -2,10 +2,9 @@ import { Award, Clock, Flame, Footprints, Lock, Mountain, Route, Timer, Trending
 import { Bar, BarChart, CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { EVENT_KM } from '../lib/plan'
 import { monthName } from '../lib/dates'
-import { computeStats, formatDuration, formatKm, longWalkChart, longWalkPace, milestones, monthlyTotals, swimStats, swimsCrowdingLongWalks, weeklyChart } from '../lib/stats'
+import { computeStats, formatDuration, formatKm, longWalkChart, longWalkPace, milestones, monthlyTotals, swimStats, weeklyChart } from '../lib/stats'
 import { formatShort } from '../lib/dates'
 import { SWIM_ELIGIBLE_SESSIONS } from '../lib/plan'
-import { SwimCrowdingNote } from './TodayView'
 import type { Diary } from '../lib/useDiary'
 import { Card, SectionTitle } from './ui'
 
@@ -36,19 +35,18 @@ export function ProgressView({ diary, today }: { diary: Diary; today: string }) 
         <StatTile Icon={TrendingUp} value={`${st.percent}%`} label="Plan completed" />
       </div>
 
-      <SectionTitle>Swim-or-walk Saturdays</SectionTitle>
+      <SectionTitle>Swim Saturdays</SectionTitle>
       <Card className="p-4">
         <div className="flex items-center gap-3" data-testid="swim-stats">
           <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-water-soft text-water"><WavesHorizontal size={22} /></span>
           <div className="min-w-0">
-            <p className="font-bold text-forest"><span data-testid="swim-count">{swims.swims}</span> {swims.swims === 1 ? 'swim' : 'swims'} · {swims.longWalks} long {swims.longWalks === 1 ? 'walk' : 'walks'}</p>
-            <p className="text-sm text-ink/60">On the {SWIM_ELIGIBLE_SESSIONS.length} Saturdays where you can swim instead (every other Saturday from {formatShort(SWIM_ELIGIBLE_SESSIONS[0].date)}).</p>
+            <p className="font-bold text-forest"><span data-testid="swim-count">{swims.swims}</span> {swims.swims === 1 ? 'swim' : 'swims'} · {swims.walksOnSwimDays} {swims.walksOnSwimDays === 1 ? 'walk' : 'walks'} instead</p>
+            <p className="text-sm text-ink/60">On the {SWIM_ELIGIBLE_SESSIONS.length} swim Saturdays (every other Saturday from {formatShort(SWIM_ELIGIBLE_SESSIONS[0].date)} to {formatShort(SWIM_ELIGIBLE_SESSIONS[SWIM_ELIGIBLE_SESSIONS.length - 1].date)}). Swims do not count toward walking km.</p>
           </div>
         </div>
         {swims.swimDates.length > 0 && (
           <p className="mt-3 text-sm text-ink/70">Swims: {swims.swimDates.map((d) => formatShort(d)).join(', ')}</p>
         )}
-        {swimsCrowdingLongWalks(data) && <SwimCrowdingNote />}
       </Card>
 
       <SectionTitle>Weekly distance</SectionTitle>
@@ -102,7 +100,7 @@ export function ProgressView({ diary, today }: { diary: Diary; today: string }) 
 
       <SectionTitle>Long-walk progression</SectionTitle>
       <Card className="p-3 pt-4">
-        <p className="mb-2 px-2 text-sm text-ink/70">Saturday long walks, building to {EVENT_KM} km</p>
+        <p className="mb-2 px-2 text-sm text-ink/70">Long walks every other Saturday, building to {EVENT_KM} km</p>
         <div className="h-56 w-full">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={longs} margin={{ top: 4, right: 8, left: -22, bottom: 0 }}>

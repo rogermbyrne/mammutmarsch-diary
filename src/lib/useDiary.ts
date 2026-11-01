@@ -49,7 +49,7 @@ export function useDiary() {
     })
   }, [update])
 
-  const complete = useCallback((id: string, activity: Activity = 'walk') => {
+  const complete = useCallback((id: string, activity?: Activity) => {
     pending.current.set(id, currentOrigin())
     update((d) => completeEntry(d, id, activity))
   }, [update])

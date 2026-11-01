@@ -4,12 +4,13 @@ import { dayName, todayBerlin } from '../src/lib/dates'
 import { computeStats, milestones, statusOf, upcomingSessions, computeStreak, kmFor, weekTotals, monthlyTotals, weeklyChart, longWalkChart, longWalkPace } from '../src/lib/stats'
 import { emptyData, loadData, saveData, STORAGE_KEY, validateData, exportPayload, type AppData } from '../src/lib/storage'
 
+// Weeks 2 to 20: [Tue, Thu, Sat] planned km. Sat is 0 on a swim Saturday (no walk planned); weeks 18 and 19 have no Saturday.
 const EXPECTED: [string, number[]][] = [
-  ['2026-10-26', [4, 5, 12]], ['2026-11-02', [5, 5, 13]], ['2026-11-09', [5, 6, 15]], ['2026-11-16', [4, 5, 10]],
-  ['2026-11-23', [5, 7, 16]], ['2026-11-30', [6, 7, 18]], ['2026-12-07', [6, 8, 20]], ['2026-12-14', [4, 6, 13]],
-  ['2026-12-21', [6, 8, 21]], ['2026-12-28', [6, 8, 23]], ['2027-01-04', [7, 9, 25]], ['2027-01-11', [5, 6, 16]],
-  ['2027-01-18', [7, 9, 26]], ['2027-01-25', [7, 10, 28]], ['2027-02-01', [5, 7, 20]], ['2027-02-08', [7, 10, 32]],
-  ['2027-02-15', [5, 7, 20]], ['2027-02-22', [4, 5, 12]], ['2027-03-01', [3, 3, 42]],
+  ['2026-10-26', [4, 5, 12]], ['2026-11-02', [5, 5, 15]], ['2026-11-09', [5, 6, 0]], ['2026-11-16', [4, 5, 18]],
+  ['2026-11-23', [5, 7, 0]], ['2026-11-30', [6, 7, 21]], ['2026-12-07', [6, 8, 0]], ['2026-12-14', [4, 6, 24]],
+  ['2026-12-21', [6, 8, 0]], ['2026-12-28', [6, 8, 27]], ['2027-01-04', [7, 9, 0]], ['2027-01-11', [5, 6, 30]],
+  ['2027-01-18', [7, 9, 0]], ['2027-01-25', [7, 10, 33]], ['2027-02-01', [5, 7, 0]], ['2027-02-08', [7, 10, 13]],
+  ['2027-02-15', [5, 7]], ['2027-02-22', [4, 5]], ['2027-03-01', [3, 3, 42]],
 ]
 
 describe('plan', () => {
@@ -21,7 +22,7 @@ describe('plan', () => {
       expect(w.start).toBe(EXPECTED[i][0])
       expect(dayName(w.start)).toBe('Monday')
       expect(w.sessions.map((s) => s.plannedKm)).toEqual(EXPECTED[i][1])
-      expect(w.sessions.map((s) => dayName(s.date))).toEqual(['Tuesday', 'Thursday', 'Saturday'])
+      expect(w.sessions.map((s) => dayName(s.date))).toEqual(['Tuesday', 'Thursday', 'Saturday'].slice(0, EXPECTED[i][1].length))
     })
     expect(WEEKS[1].start).toBe('2026-10-26')
   })
@@ -39,12 +40,14 @@ describe('plan', () => {
     expect(weekForDate('2026-10-25')).toBe(1)
     expect(weekForDate('2026-10-26')).toBe(2)
     expect(weekForDate('2027-03-06')).toBe(20)
-    expect(FINAL_LONG_ID).toBe('w19-sat')
-    expect(SESSION_BY_ID[FINAL_LONG_ID].date).toBe('2027-02-27')
+    expect(FINAL_LONG_ID).toBe('w17-sat')
+    expect(SESSION_BY_ID[FINAL_LONG_ID].date).toBe('2027-02-13')
+    expect(SESSION_BY_ID[FINAL_LONG_ID].plannedKm).toBe(13)
   })
-  it('has 57 training walks and the event on Sat 6 Mar 2027', () => {
-    expect(TRAINING_SESSIONS).toHaveLength(57)
-    expect(ALL_SESSIONS).toHaveLength(58)
+  it('has 55 training sessions (48 walks and 7 swim Saturdays) and the event on Sat 6 Mar 2027', () => {
+    expect(TRAINING_SESSIONS).toHaveLength(55)
+    expect(TRAINING_SESSIONS.filter((s) => s.type === 'swim')).toHaveLength(7)
+    expect(ALL_SESSIONS).toHaveLength(56)
     expect(EVENT_SESSION.date).toBe('2027-03-06')
     expect(EVENT_SESSION.date).toBe(EVENT_DATE)
     expect(EVENT_SESSION.week).toBe(20)
@@ -56,8 +59,27 @@ describe('plan', () => {
     expect(w11.end).toBe('2027-01-03')
     expect(WEEKS[11].sessions.map((s) => s.date)).toEqual(['2027-01-05', '2027-01-07', '2027-01-09'])
   })
-  it('marks recovery weeks', () => {
-    expect(WEEKS.filter((w) => w.recovery).map((w) => w.number)).toEqual([5, 9, 13, 16, 18, 19])
+  it('follows her handwritten plan: long walks every other Saturday from 7 Nov, swim weeks between, taper weeks 17 to 19', () => {
+    const longs = TRAINING_SESSIONS.filter((s) => s.type === 'long' && s.week >= 3).map((s) => [s.id, s.date, s.plannedKm])
+    expect(longs).toEqual([
+      ['w3-sat', '2026-11-07', 15], ['w5-sat', '2026-11-21', 18], ['w7-sat', '2026-12-05', 21], ['w9-sat', '2026-12-19', 24],
+      ['w11-sat', '2027-01-02', 27], ['w13-sat', '2027-01-16', 30], ['w15-sat', '2027-01-30', 33], ['w17-sat', '2027-02-13', 13],
+    ])
+    expect(WEEKS.filter((w) => w.swimWeek).map((w) => w.number)).toEqual([4, 6, 8, 10, 12, 14, 16])
+    expect(WEEKS.filter((w) => w.taper).map((w) => w.number)).toEqual([17, 18, 19])
+    expect(SESSION_BY_ID['w18-sat']).toBeUndefined()
+    expect(SESSION_BY_ID['w19-sat']).toBeUndefined()
+    // unchanged: week 1, week 2 and the event
+    expect(SESSION_BY_ID['w1-sat'].plannedKm).toBe(10)
+    expect(SESSION_BY_ID['w2-sat']).toMatchObject({ date: '2026-10-31', plannedKm: 12, type: 'long' })
+    expect(EVENT_SESSION).toMatchObject({ date: '2027-03-06', plannedKm: 42 })
+  })
+  it('planned weekly km leave the swim Saturdays out', () => {
+    expect(weekTotals(emptyData(), 3).plannedKm).toBe(25)
+    expect(weekTotals(emptyData(), 4).plannedKm).toBe(11)
+    expect(weekTotals(emptyData(), 15).plannedKm).toBe(50)
+    expect(weekTotals(emptyData(), 18).plannedKm).toBe(12)
+    expect(Math.max(...WEEKS.map((w) => weekTotals(emptyData(), w.number).plannedKm))).toBe(50)
   })
   it('Berlin today handles late-evening UTC', () => {
     expect(todayBerlin(new Date('2026-12-31T23:30:00Z'))).toBe('2027-01-01')
@@ -73,7 +95,7 @@ describe('stats', () => {
     done(d, 'event', 43)
     const s = computeStats(d, '2026-11-01')
     expect(s.completed).toBe(2)
-    expect(s.total).toBe(57)
+    expect(s.total).toBe(55)
     expect(s.trainingKm).toBe(18)
     expect(s.totalKm).toBe(61)
     expect(s.percent).toBe(4)
@@ -92,7 +114,7 @@ describe('stats', () => {
     expect(milestones(d).every((m) => !m.unlocked)).toBe(true)
     done(d, 'w7-sat', 19)
     expect(milestones(d).find((m) => m.id === 'km20')!.unlocked).toBe(false)
-    done(d, 'w9-tue', 21)
+    done(d, 'w9-sat', 21)
     expect(milestones(d).find((m) => m.id === 'km20')!.unlocked).toBe(true)
   })
   it('streak and upcoming', () => {
@@ -165,7 +187,7 @@ describe('first load and saved data', () => {
     const { data } = loadData()
     expect(data).toEqual(emptyData())
     expect(Object.values(data.entries).filter((e) => e.completed)).toHaveLength(0)
-    expect(computeStats(data, '2026-10-25')).toMatchObject({ completed: 0, total: 57, trainingKm: 0 })
+    expect(computeStats(data, '2026-10-25')).toMatchObject({ completed: 0, total: 55, trainingKm: 0 })
     expect(statusOf(SESSION_BY_ID['w1-sat'], data, '2026-10-25')).toBe('missed')
   })
   it('ticking the week 1 walk adds 10 km to the totals', () => {

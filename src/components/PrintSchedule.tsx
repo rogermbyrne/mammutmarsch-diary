@@ -16,11 +16,11 @@ export function PrintSchedule({ data }: { data: AppData }) {
         <tbody>
           {WEEKS.map((w) => (
             <tr key={w.number} className="border-b border-gray-300 align-top">
-              <td className="py-1 pr-2 font-semibold">{w.number}{w.recovery ? ' (recovery)' : ''}</td>
+              <td className="py-1 pr-2 font-semibold">{w.number}{w.taper ? ' (taper)' : w.swimWeek ? ' (swim week)' : ''}</td>
               <td className="pr-2">{formatRange(w.start, w.end)}</td>
               <td>
                 {w.sessions.map((s) => (
-                  <div key={s.id}>{isDone(s, data) ? '☑' : '☐'} {formatShort(effectiveDate(s, data))}: {TYPE_LABEL[s.type]} {formatKm(s.plannedKm)} km{isSwimEligible(s) ? ' (or swim)' : ''}{isSwim(data.entries[s.id]) ? ' (swam)' : isDone(s, data) && kmFor(s, data.entries[s.id]) !== s.plannedKm ? ` (walked ${formatKm(kmFor(s, data.entries[s.id]))} km)` : ''}</div>
+                  <div key={s.id}>{isDone(s, data) ? '☑' : '☐'} {formatShort(effectiveDate(s, data))}: {TYPE_LABEL[s.type]}{isSwimEligible(s) ? ' (maybe swimming, or log a walk)' : ` ${formatKm(s.plannedKm)} km`}{isSwim(data.entries[s.id]) ? ' (swam)' : isDone(s, data) && (isSwimEligible(s) || kmFor(s, data.entries[s.id]) !== s.plannedKm) ? ` (walked ${formatKm(kmFor(s, data.entries[s.id]))} km)` : ''}</div>
                 ))}
               </td>
             </tr>

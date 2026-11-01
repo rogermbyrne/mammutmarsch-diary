@@ -2,11 +2,12 @@ import { Check, Flag, Mountain, WavesHorizontal } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { formatShort } from '../lib/dates'
 import { SWIM_LABEL, TYPE_LABEL, isSwimEligible, type Session } from '../lib/plan'
-import { effectiveDate, formatKm, isSwim, kmFor, statusOf, type Status } from '../lib/stats'
+import { effectiveDate, formatKm, isSwim, isSwimDayWalk, kmFor, statusOf, type Status } from '../lib/stats'
 import type { AppData, Entry } from '../lib/storage'
 
-/** Label for what she did: "Swim" when a swim-or-walk Saturday was ticked as a swim, otherwise the planned walk. */
-export const sessionLabel = (s: Session, e: Entry | undefined): string => (isSwim(e) ? SWIM_LABEL : TYPE_LABEL[s.type])
+/** Label for what she did: "Swim" when ticked as a swim, "Walk" for a walk on a swim Saturday, otherwise the planned session. */
+export const sessionLabel = (s: Session, e: Entry | undefined): string =>
+  isSwim(e) ? SWIM_LABEL : isSwimDayWalk(s, e) ? 'Walk on a swim day' : TYPE_LABEL[s.type]
 
 export function Card({ children, className = '' }: { children: ReactNode; className?: string }) {
   return <div className={`rounded-3xl bg-white shadow-soft ${className}`}>{children}</div>
@@ -47,7 +48,7 @@ export function CheckButton({ session, status, onToggle, size = 'md', label }: {
       type="button"
       role="checkbox"
       aria-checked={done}
-      aria-label={`${done ? 'Completed' : 'Mark complete'}: ${label ?? TYPE_LABEL[session.type]}, ${formatKm(session.plannedKm)} km`}
+      aria-label={`${done ? 'Completed' : 'Mark complete'}: ${label ?? TYPE_LABEL[session.type]}${isSwimEligible(session) ? '' : `, ${formatKm(session.plannedKm)} km`}`}
       onClick={(e) => { e.stopPropagation(); onToggle() }}
       className={`${base} ${dim} ${cls}`}
     >
@@ -80,7 +81,8 @@ export function SessionRow({ session, data, today, onToggle, onOpen, showDate = 
   const date = effectiveDate(session, data)
   const moved = entry?.rescheduledDate && entry.rescheduledDate !== session.date
   const swam = isSwim(entry)
-  const swimOption = isSwimEligible(session) && status !== 'completed'
+  const swimDay = isSwimEligible(session)
+  const swimOption = swimDay && status !== 'completed'
   const ring = session.isEvent
     ? 'bg-gradient-to-br from-forest to-[#245448] text-white'
     : status === 'completed'
@@ -120,20 +122,22 @@ export function SessionRow({ session, data, today, onToggle, onOpen, showDate = 
             <StatusPill status={status} />
           )}
           {swimOption && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-water-soft px-2.5 py-0.5 text-xs font-semibold text-water"><WavesHorizontal size={12} /> or swim</span>
+            <span className="inline-flex items-center gap-1 rounded-full bg-water-soft px-2.5 py-0.5 text-xs font-semibold text-water"><WavesHorizontal size={12} /> maybe swimming</span>
           )}
         </div>
       </div>
       <div className="shrink-0 text-right">
         {swam ? (
           <div className="text-base font-bold text-water">Swam</div>
+        ) : swimDay && status !== 'completed' ? (
+          <WavesHorizontal size={26} className="text-water" aria-hidden />
         ) : (
           <div className={`text-xl font-bold ${session.isEvent ? 'text-lime' : 'text-forest'}`}>
             {formatKm(status === 'completed' ? kmFor(session, entry) : session.plannedKm)}
             <span className="ml-0.5 text-sm font-semibold">km</span>
           </div>
         )}
-        {!swam && status === 'completed' && entry?.actualKm !== undefined && entry.actualKm !== session.plannedKm && (
+        {!swam && !swimDay && status === 'completed' && entry?.actualKm !== undefined && entry.actualKm !== session.plannedKm && (
           <div className={`text-xs ${sub}`}>plan {formatKm(session.plannedKm)}</div>
         )}
       </div>

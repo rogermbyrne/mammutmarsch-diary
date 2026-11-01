@@ -1,4 +1,4 @@
-// Headless check of the swim-or-walk Saturdays: anchor date, swim choice, existing data kept, swim count, crowding note.
+// Headless check of Andrea's plan: long walks every other Saturday, swim Saturdays between, taper weeks, existing data kept.
 // Usage: node scripts/swim-e2e.mjs http://localhost:4173/
 import puppeteer from 'puppeteer-core'
 const BASE = process.argv[2] || 'http://localhost:4173/'
@@ -26,87 +26,100 @@ async function open(fakeIso, seed) {
 const text = (p) => p.evaluate(() => document.body.innerText)
 const stored = (p) => p.evaluate((k) => JSON.parse(localStorage.getItem(k) || 'null'), KEY)
 const nav = async (p, t) => { await p.evaluate((t) => [...document.querySelectorAll('nav button')].find((b) => b.textContent.includes(t)).click(), t); await sleep(250) }
+const clickText = async (p, t) => { const ok = await p.evaluate((t) => { const b = [...document.querySelectorAll('button')].find((x) => x.textContent.includes(t)); if (b) b.click(); return !!b }, t); if (!ok) fail('no button ' + t); await sleep(300) }
+const overflow = async (p, label) => { const o = await p.evaluate(() => [document.documentElement.scrollWidth, document.documentElement.clientWidth]); if (o[0] > o[1]) fail('overflow on ' + label) }
+const noDash = async (p, label) => { if (/\u2014/.test(await text(p))) fail('em dash on ' + label) }
 
-// 1) Sat 31 Oct (before the anchor): walk-only, no swim option.
-let p = await open('2026-10-31T09:00:00+01:00', null)
-if (await p.$('[data-testid="swim-instead"]')) fail('swim option shown on Sat 31 Oct (before 7 Nov anchor)')
-await p.close()
-
-// 2) Sat 7 Nov with her existing data: data intact, swim option offered, ticking a swim logs it without touching km.
-p = await open('2026-11-07T09:00:00+01:00', OLD)
+// 1) Sat 7 Nov with her existing data plus an old swim on w3-sat: kept as logged, 15 km long walk, no swim button.
+const withSwim = { ...OLD, entries: { ...OLD.entries, 'w3-sat': { completed: true, activity: 'swim' } } }
+let p = await open('2026-11-07T09:00:00+01:00', withSwim)
 let t = await text(p)
 if (!t.includes('Hi Andrea!')) fail('existing name lost')
-if (!/4\s*\/57/.test(t)) fail('existing 4 walks not shown')
-if (!t.includes('Long endurance walk')) fail('long walk should stay the default plan item')
-if (!(await p.$('[data-testid="swim-instead"]'))) fail('no swim option on Sat 7 Nov')
-const kmBefore = (t.match(/([\d.]+)km\s*walked/i) || t.match(/([\d.]+)\s*km\s*\n?\s*walked/i) || [])[1]
-await p.click('[data-testid="swim-instead"]'); await sleep(400)
-t = await text(p)
-if (!t.includes('Swim ticked off')) fail('swim confirmation missing')
+if (!/5\s*\/55/.test(t)) fail('existing 5 sessions (4 walks + old swim) not shown')
+if (!t.includes('Swim ticked off')) fail('old w3-sat swim not shown as a swim')
 let s = await stored(p)
-if (s.entries['w3-sat']?.activity !== 'swim' || !s.entries['w3-sat'].completed) fail('swim not stored')
-if (s.entries['w3-sat'].actualKm !== undefined) fail('swim should not log walking km')
-for (const id of Object.keys(OLD.entries)) if (norm(s.entries[id]) !== norm(OLD.entries[id])) fail('existing entry changed: ' + id)
-if (s.weekNotes['1'] !== 'Lovely first walk') fail('week note lost')
-if (Object.keys(s.entries).some((id) => !(id in OLD.entries) && id !== 'w3-sat')) fail('other entries were created: plan changed')
-const kmAfter = (t.match(/([\d.]+)km\s*walked/i) || t.match(/([\d.]+)\s*km\s*\n?\s*walked/i) || [])[1]
-if (kmBefore !== kmAfter) fail(`walked km changed by a swim: ${kmBefore} -> ${kmAfter}`)
-await p.reload({ waitUntil: 'networkidle0' })
+for (const id of Object.keys(withSwim.entries)) if (norm(s?.entries?.[id] ?? withSwim.entries[id]) !== norm(withSwim.entries[id])) fail('existing entry changed: ' + id)
+await p.screenshot({ path: '/workspace/mammutmarsch-diary/shots/plan2-2026-11-07-today-oldswim.png', fullPage: true })
+await p.close()
+
+// 1b) Sat 7 Nov without an old swim: 15 km long walk, Mark Complete, no swim option.
+p = await open('2026-11-07T09:00:00+01:00', OLD)
+t = await text(p)
+if (!t.includes('Long endurance walk')) fail('long walk missing on 7 Nov')
+if (!/\b15\s*km/.test(t)) fail('15 km not shown on 7 Nov')
+if (await p.$('[data-testid="i-swam"]')) fail('swim option on a long-walk Saturday')
+await overflow(p, '7 Nov today'); await noDash(p, '7 Nov today')
+await p.screenshot({ path: '/workspace/mammutmarsch-diary/shots/plan2-2026-11-07-today.png', fullPage: true })
+await clickText(p, 'Mark Complete')
 s = await stored(p)
-if (s.entries['w3-sat']?.activity !== 'swim') fail('swim not persisted after reload')
+if (s.entries['w3-sat']?.actualKm !== 15) fail('w3-sat tick should log 15 km')
+await p.close()
+
+// 2) Sat 14 Nov: swim day. "I swam" logs a swim, no km.
+p = await open('2026-11-14T09:00:00+01:00', OLD)
+t = await text(p)
+if (!t.includes('Swim day')) fail('swim day title missing on 14 Nov')
+if (!(await p.$('[data-testid="i-swam"]'))) fail('no I swam button on 14 Nov')
+await overflow(p, '14 Nov today'); await noDash(p, '14 Nov today')
+await p.screenshot({ path: '/workspace/mammutmarsch-diary/shots/plan2-2026-11-14-today.png', fullPage: true })
+await p.click('[data-testid="i-swam"]'); await sleep(400)
+s = await stored(p)
+if (s.entries['w4-sat']?.activity !== 'swim' || s.entries['w4-sat'].actualKm !== undefined) fail('I swam not stored as a swim')
+if (!(await text(p)).includes('Swim ticked off')) fail('swim confirmation missing')
 await nav(p, 'Progress')
 const count = await p.$eval('[data-testid="swim-count"]', (e) => e.textContent).catch(() => null)
 if (count !== '1') fail('swim count should be 1, got ' + count)
-if (await p.$('[data-testid="swim-crowding-note"]')) fail('crowding note shown after 1 swim')
-await p.screenshot({ path: '/workspace/mammutmarsch-diary/shots/swim-progress.png', fullPage: true })
-// Diary: week 3 Saturday shows as Swim; week 4 Saturday has no swim chip; week 5 does.
+await noDash(p, 'progress')
+await p.screenshot({ path: '/workspace/mammutmarsch-diary/shots/plan2-progress.png', fullPage: true })
+await p.close()
+
+// 3) Sat 14 Nov: "I walked instead" opens the sheet on Walk with an empty km field; 8 km logs a walk.
+p = await open('2026-11-14T09:00:00+01:00', OLD)
+await p.click('[data-testid="walk-instead"]'); await sleep(400)
+if (!(await p.$('#km'))) fail('km field missing for a walk on a swim day')
+if ((await p.$eval('#km', (e) => e.value)) !== '') fail('km field should start empty on a swim day')
+await noDash(p, 'swim-day sheet')
+await p.screenshot({ path: '/workspace/mammutmarsch-diary/shots/plan2-swimday-walk-sheet.png' })
+await clickText(p, 'Mark Complete')
+if (!(await text(p)).includes('Please enter how far you walked')) fail('empty km on swim-day walk should ask for a distance')
+await p.type('#km', '8')
+await clickText(p, 'Mark Complete')
+s = await stored(p)
+if (s.entries['w4-sat']?.activity !== 'walk' || s.entries['w4-sat'].actualKm !== 8 || !s.entries['w4-sat'].completed) fail('swim-day walk not stored: ' + JSON.stringify(s.entries['w4-sat']))
+await p.close()
+
+// 4) Short walk is not a failure: w5-sat 18 km logged as 12 shows "6 km less than planned".
+p = await open('2026-11-21T09:00:00+01:00', OLD)
+await p.evaluate(() => document.querySelector('button.block.w-full')?.click()); await sleep(400)
+if (!(await p.$('#km'))) fail('sheet did not open for 21 Nov')
+await p.$eval('#km', (e) => { const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; set.call(e, '12'); e.dispatchEvent(new Event('input', { bubbles: true })) }); await sleep(200)
+if (!(await text(p)).includes('6 km less than planned.')) fail('neutral short-walk wording missing')
+await p.close()
+
+// 5) Diary: week 4 shows the swim week note; week 18 taper with no Saturday; no em dashes.
+p = await open('2026-11-14T09:00:00+01:00', OLD)
 await nav(p, 'Diary')
 t = await text(p)
-if (!/Swim/.test(t) || !(await p.$('[data-swim="true"]'))) fail('swim not marked in diary')
-await p.screenshot({ path: '/workspace/mammutmarsch-diary/shots/swim-diary-w3.png', fullPage: true })
-await p.click('button[aria-label="Next week"]'); await sleep(200)
-if ((await text(p)).includes('or swim')) fail('week 4 (14 Nov) should be walk-only')
-await p.click('button[aria-label="Next week"]'); await sleep(200)
-if (!(await text(p)).includes('or swim')) fail('week 5 (21 Nov) should offer the swim')
-// Sheet choice on week 5: pick swim then Mark Complete
-await p.evaluate(() => [...document.querySelectorAll('[role=button][aria-label*="open details"]')].find((e) => e.getAttribute('aria-label').startsWith('Long')).click())
-await sleep(300)
-await p.click('[data-activity="swim"]'); await sleep(150)
-if (await p.$('#km')) fail('distance field should hide for a swim')
-await p.screenshot({ path: '/workspace/mammutmarsch-diary/shots/swim-sheet.png' })
-await p.evaluate(() => [...document.querySelectorAll('button')].find((b) => b.textContent.includes('Mark Complete')).click()); await sleep(300)
-s = await stored(p)
-if (s.entries['w5-sat']?.activity !== 'swim') fail('sheet swim choice not stored')
-// switch back to the long walk from the sheet
-await p.click('[data-activity="walk"]'); await sleep(150)
-s = await stored(p)
-if (s.entries['w5-sat']?.activity !== undefined || s.entries['w5-sat'].actualKm !== 10) fail('switching back to the walk failed')
+if (!t.includes('Swim week')) fail('swim week note missing in week 4')
+if (!t.includes('maybe swimming')) fail('swim day chip missing in week 4')
+await overflow(p, 'diary'); await noDash(p, 'diary')
+await p.screenshot({ path: '/workspace/mammutmarsch-diary/shots/plan2-diary-w4.png', fullPage: true })
+await p.select('select', '18'); await sleep(200)
+t = await text(p)
+if (!t.includes('Taper week: no long walk on Saturday')) fail('taper note missing in week 18')
+if (/Long endurance walk/.test(t)) fail('week 18 should have no long walk')
+await p.screenshot({ path: '/workspace/mammutmarsch-diary/shots/plan2-diary-w18.png', fullPage: true })
+await p.select('select', '15'); await sleep(200)
+if (!(await text(p)).includes('33')) fail('week 15 should show 33 km')
 await p.close()
 
-// 2b) Sat 27 Feb 2027 (final long walk): walk-only, no swim option; Sat 13 Feb is the last swim Saturday.
-p = await open('2027-02-27T09:00:00+01:00', OLD)
-if (await p.$('[data-testid="swim-instead"]')) fail('swim option shown on Sat 27 Feb (final long walk)')
-if (!(await text(p)).includes('Long endurance walk')) fail('Sat 27 Feb should show the long walk')
-await nav(p, 'Diary')
-if ((await text(p)).includes('or swim')) fail('week 19 (27 Feb) should be walk-only in the diary')
-await p.click('button[aria-label="Previous week"]'); await sleep(200)
-await p.click('button[aria-label="Previous week"]'); await sleep(200)
-if (!(await text(p)).includes('or swim')) fail('week 17 (13 Feb) should offer the swim')
-await p.close()
-p = await open('2027-02-13T09:00:00+01:00', OLD)
-if (!(await p.$('[data-testid="swim-instead"]'))) fail('no swim option on Sat 13 Feb')
-await p.close()
-
-// 3) Crowding: 3 eligible swims in a row and no long walk in between shows the note; alternating does not.
-const crowd = { ...OLD, entries: { ...OLD.entries, 'w3-sat': { completed: true, activity: 'swim' }, 'w5-sat': { completed: true, activity: 'swim' }, 'w7-sat': { completed: true, activity: 'swim' } } }
-p = await open('2026-12-06T09:00:00+01:00', crowd)
-if (!(await p.$('[data-testid="swim-crowding-note"]'))) fail('crowding note missing on Today')
-await p.screenshot({ path: '/workspace/mammutmarsch-diary/shots/swim-crowding-today.png', fullPage: true })
-await p.close()
-const alt = { ...crowd, entries: { ...crowd.entries, 'w4-sat': { completed: true, actualKm: 15 }, 'w6-sat': { completed: true, actualKm: 16 } } }
-p = await open('2026-12-06T09:00:00+01:00', alt)
-if (await p.$('[data-testid="swim-crowding-note"]')) fail('crowding note shown although long walks were done in between')
+// 6) Old entries on retired Saturdays are archived, not lost, after the app saves.
+const retired = { ...OLD, entries: { ...OLD.entries, 'w19-sat': { completed: true, activity: 'swim' } } }
+p = await open('2026-11-14T09:00:00+01:00', retired)
+await p.click('[data-testid="i-swam"]'); await sleep(400)
+s = await stored(p)
+if (!s.archived?.['w19-sat']?.completed) fail('w19-sat entry not archived after save')
 await p.close()
 
 await browser.close()
-console.log(process.exitCode ? 'SWIM E2E FAILED' : 'SWIM E2E PASSED')
+console.log(process.exitCode ? 'PLAN E2E FAILED' : 'PLAN E2E PASSED')

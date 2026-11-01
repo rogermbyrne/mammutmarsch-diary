@@ -1,7 +1,7 @@
-import { ChevronLeft, ChevronRight, Leaf, NotebookPen, Printer } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Leaf, NotebookPen, Printer, WavesHorizontal } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { addDays, dayName, daysBetween, formatRange, parseISO } from '../lib/dates'
-import { TOTAL_WEEKS, WEEKS, weekForDate } from '../lib/plan'
+import { TOTAL_WEEKS, WEEKS, isSwimEligible, weekForDate } from '../lib/plan'
 import { effectiveDate, formatKm, isDone, isSwim, sortedSessions, weekTotals } from '../lib/stats'
 import type { Diary } from '../lib/useDiary'
 import { Card, SessionRow } from './ui'
@@ -44,7 +44,7 @@ export function DiaryView({ diary, today, onOpen, onPrint }: { diary: Diary; tod
             className="h-12 w-full appearance-none rounded-2xl bg-white px-3 text-center font-bold text-forest shadow-soft">
             {WEEKS.map((x) => (
               <option key={x.number} value={x.number}>
-                Week {x.number} · {formatRange(x.start, x.end).replace(/ \d{4}$/, '')}{x.recovery ? ' 🌿' : ''}
+                Week {x.number} · {formatRange(x.start, x.end).replace(/ \d{4}$/, '')}{x.taper ? ' 🌿' : x.swimWeek ? ' 🏊' : ''}
               </option>
             ))}
           </select>
@@ -60,7 +60,7 @@ export function DiaryView({ diary, today, onOpen, onPrint }: { diary: Diary; tod
         </div>
       )}
 
-      <Card className={`mt-4 p-4 ${w.recovery ? 'bg-[#EEF6F0] ring-1 ring-leaf/30' : ''}`}>
+      <Card className={`mt-4 p-4 ${w.taper ? 'bg-[#EEF6F0] ring-1 ring-leaf/30' : ''}`}>
         <div className="flex items-start justify-between gap-2">
           <div>
             <p className="text-lg font-extrabold text-forest">Week {week} of {TOTAL_WEEKS}</p>
@@ -72,9 +72,14 @@ export function DiaryView({ diary, today, onOpen, onPrint }: { diary: Diary; tod
             <p className="text-xs text-ink/60">of {formatKm(planned)} km planned</p>
           </div>
         </div>
-        {w.recovery && (
+        {w.taper && (
           <p className="mt-3 flex items-center gap-2 rounded-xl bg-sage px-3 py-2 text-sm font-semibold text-forest">
-            <Leaf size={16} /> {week >= 18 ? 'Taper week: ease off and let your legs freshen up.' : 'Recovery week: lighter walks so your body can adapt.'}
+            <Leaf size={16} className="shrink-0" /> {week === 17 ? 'Taper week: a gentle 13 km on Saturday, then ease off and let your legs freshen up.' : 'Taper week: no long walk on Saturday. Rest and let your legs freshen up.'}
+          </p>
+        )}
+        {w.swimWeek && (
+          <p className="mt-3 flex items-center gap-2 rounded-xl bg-water-soft px-3 py-2 text-sm font-semibold text-forest">
+            <WavesHorizontal size={16} className="shrink-0 text-water" /> Swim week: no long walk on Saturday, so your knees and hips get a break. Maybe a swim instead.
           </p>
         )}
         {week === 1 && (
@@ -90,11 +95,12 @@ export function DiaryView({ diary, today, onOpen, onPrint }: { diary: Diary; tod
             const done = s && isDone(s, data)
             const missed = s && !done && d < today
             const swam = s && isSwim(data.entries[s.id])
+            const swimDay = s && isSwimEligible(s)
             return (
               <div key={d} className={`flex flex-col items-center rounded-xl py-1.5 ${isToday ? 'bg-forest text-white' : ''}`} aria-current={isToday ? 'date' : undefined}>
                 <span className={`text-[0.7rem] font-semibold ${isToday ? 'text-white/80' : 'text-ink/50'}`}>{dayName(d).charAt(0)}</span>
                 <span className="text-sm font-bold">{parseISO(d).day}</span>
-                <span className={`mt-1 h-2 w-2 rounded-full ${!s ? 'bg-transparent' : s.isEvent ? 'bg-lime ring-1 ring-forest' : swam ? 'bg-water' : done ? 'bg-leaf' : missed ? 'bg-amber-line' : isToday ? 'bg-lime' : 'border border-ink/30'}`} />
+                <span className={`mt-1 h-2 w-2 rounded-full ${!s ? 'bg-transparent' : s.isEvent ? 'bg-lime ring-1 ring-forest' : swam ? 'bg-water' : done ? 'bg-leaf' : missed ? 'bg-amber-line' : isToday ? 'bg-lime' : swimDay ? 'border border-water' : 'border border-ink/30'}`} />
               </div>
             )
           })}
@@ -121,6 +127,7 @@ export function DiaryView({ diary, today, onOpen, onPrint }: { diary: Diary; tod
         <Legend dot="bg-leaf" label="Completed" />
         <Legend dot="border border-ink/40" label="Upcoming" />
         <Legend dot="bg-water" label="Swim" />
+        <Legend dot="border border-water" label="Swim day" />
         <Legend dot="bg-amber-line" label="Not ticked off" />
         <Legend dot="bg-lime ring-1 ring-forest" label="Mammutmarsch" />
       </div>

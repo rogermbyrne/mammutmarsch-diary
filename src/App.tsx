@@ -9,12 +9,15 @@ import { TodayView } from './components/TodayView'
 import { WalkSheet } from './components/WalkSheet'
 import { SESSION_BY_ID } from './lib/plan'
 import { useDiary, useToday } from './lib/useDiary'
+import type { Activity } from './lib/storage'
 
 export default function App() {
   const diary = useDiary()
   const today = useToday()
   const [tab, setTab] = useState<Tab>('today')
   const [openId, setOpenId] = useState<string | null>(null)
+  const [openActivity, setOpenActivity] = useState<Activity | undefined>(undefined)
+  const openSheet = useCallback((id: string, activity?: Activity) => { setOpenActivity(activity); setOpenId(id) }, [])
   const [toast, setToast] = useState<string | null>(null)
 
   const showToast = useCallback((msg: string) => setToast(msg), [])
@@ -38,14 +41,14 @@ export default function App() {
           </div>
         )}
         <main>
-          {tab === 'today' && <TodayView diary={diary} today={today} onOpen={setOpenId} onGoDiary={() => changeTab('diary')} />}
-          {tab === 'diary' && <DiaryView diary={diary} today={today} onOpen={setOpenId} onPrint={() => window.print()} />}
+          {tab === 'today' && <TodayView diary={diary} today={today} onOpen={openSheet} onGoDiary={() => changeTab('diary')} />}
+          {tab === 'diary' && <DiaryView diary={diary} today={today} onOpen={openSheet} onPrint={() => window.print()} />}
           {tab === 'progress' && <ProgressView diary={diary} today={today} />}
           {tab === 'settings' && <SettingsView diary={diary} onToast={showToast} />}
         </main>
       </div>
       <BottomNav tab={tab} onChange={changeTab} />
-      {openId && SESSION_BY_ID[openId] && <WalkSheet key={openId} id={openId} diary={diary} today={today} onClose={closeSheet} />}
+      {openId && SESSION_BY_ID[openId] && <WalkSheet key={openId} id={openId} initialActivity={openActivity} diary={diary} today={today} onClose={closeSheet} />}
       {toast && (
         <div role="status" className="anim-fade fixed inset-x-0 bottom-24 z-50 mx-auto w-fit max-w-[90%] rounded-full bg-forest px-5 py-3 text-sm font-semibold text-white shadow-soft print:hidden">
           {toast}

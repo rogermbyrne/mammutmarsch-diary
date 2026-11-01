@@ -1,99 +1,81 @@
 import { describe, expect, it } from 'vitest'
 import { completeEntry, setEntryActivity, uncompleteEntry } from '../src/lib/entries'
-import { ALL_SESSIONS, SESSION_BY_ID, SWIM_ANCHOR, SWIM_ELIGIBLE_SESSIONS, WEEKS, isSwimEligible } from '../src/lib/plan'
+import { ALL_SESSIONS, SESSION_BY_ID, SWIM_ELIGIBLE_SESSIONS, WEEKS, isSwimEligible } from '../src/lib/plan'
 import {
-  SWIM_CROWDING_NOTE, SWIM_CROWDING_THRESHOLD, celebrationFor, computeStats, longWalkChart, milestones, swimStats,
-  swimsCrowdingLongWalks, weekTotals, weeklyChart,
+  celebrationFor, computeStats, longWalkChart, milestones, monthlyTotals, statusOf, swimStats, weekTotals, weeklyChart,
 } from '../src/lib/stats'
 import { emptyData, exportPayload, validateData, type AppData } from '../src/lib/storage'
 
 const plannedSnapshot = () => JSON.stringify(ALL_SESSIONS)
-const NOW = '2026-11-07T12:00:00.000Z'
+const NOW = '2026-11-14T12:00:00.000Z'
+const SWIM_IDS = ['w4-sat', 'w6-sat', 'w8-sat', 'w10-sat', 'w12-sat', 'w14-sat', 'w16-sat']
 
-describe('swim-or-walk Saturdays: anchor and alternation', () => {
-  it('first eligible Saturday is Sat 7 Nov 2026, then every 14 days, last is Sat 13 Feb 2027', () => {
-    expect(SWIM_ANCHOR).toBe('2026-11-07')
-    expect(SWIM_ELIGIBLE_SESSIONS[0].date).toBe('2026-11-07')
-    expect(SWIM_ELIGIBLE_SESSIONS[0].id).toBe('w3-sat')
+describe('swim Saturdays (her "maybe swimming" weeks)', () => {
+  it('are the even weeks 4 to 16, every other Saturday from Sat 14 Nov 2026 to Sat 6 Feb 2027', () => {
+    expect(SWIM_ELIGIBLE_SESSIONS.map((s) => s.id)).toEqual(SWIM_IDS)
     expect(SWIM_ELIGIBLE_SESSIONS.map((s) => s.date)).toEqual([
-      '2026-11-07', '2026-11-21', '2026-12-05', '2026-12-19', '2027-01-02',
-      '2027-01-16', '2027-01-30', '2027-02-13',
+      '2026-11-14', '2026-11-28', '2026-12-12', '2026-12-26', '2027-01-09', '2027-01-23', '2027-02-06',
     ])
-    expect(SWIM_ELIGIBLE_SESSIONS[SWIM_ELIGIBLE_SESSIONS.length - 1].date).toBe('2027-02-13')
-    expect(SWIM_ELIGIBLE_SESSIONS.map((s) => s.id)).toEqual(['w3-sat', 'w5-sat', 'w7-sat', 'w9-sat', 'w11-sat', 'w13-sat', 'w15-sat', 'w17-sat'])
+    for (const s of SWIM_ELIGIBLE_SESSIONS) expect(s).toMatchObject({ type: 'swim', plannedKm: 0 })
   })
-  it('Saturdays before 7 Nov, the in-between Saturdays, weekdays and the event are walk-only', () => {
-    expect(isSwimEligible(SESSION_BY_ID['w1-sat'])).toBe(false) // 24 Oct
-    expect(isSwimEligible(SESSION_BY_ID['w2-sat'])).toBe(false) // 31 Oct
-    expect(isSwimEligible(SESSION_BY_ID['w4-sat'])).toBe(false) // 14 Nov
-    expect(isSwimEligible(SESSION_BY_ID['w6-sat'])).toBe(false) // 28 Nov
-    expect(isSwimEligible(SESSION_BY_ID['w3-tue'])).toBe(false)
-    expect(isSwimEligible(SESSION_BY_ID['w3-thu'])).toBe(false)
-    expect(isSwimEligible(SESSION_BY_ID['event'])).toBe(false)
-    expect(SESSION_BY_ID['w19-sat'].date).toBe('2027-02-27')
-    expect(isSwimEligible(SESSION_BY_ID['w19-sat'])).toBe(false) // final long walk is walk-only
-    // every eligible session is a planned Saturday long walk
-    for (const s of SWIM_ELIGIBLE_SESSIONS) expect(s.type).toBe('long')
+  it('long-walk Saturdays, weekdays, week 1, week 2 and the event offer no swim', () => {
+    for (const id of ['w1-sat', 'w2-sat', 'w3-sat', 'w5-sat', 'w15-sat', 'w17-sat', 'w4-tue', 'w4-thu', 'event']) {
+      expect(isSwimEligible(SESSION_BY_ID[id])).toBe(false)
+    }
   })
 })
 
-describe('swim choice', () => {
-  it('ticking as a swim logs a swim; ticking normally logs the long walk (the default)', () => {
-    let d = completeEntry(emptyData(), 'w3-sat', 'swim', NOW)
-    expect(d.entries['w3-sat']).toMatchObject({ completed: true, activity: 'swim' })
-    expect(d.entries['w3-sat'].actualKm).toBeUndefined()
-    d = completeEntry(emptyData(), 'w3-sat', undefined, NOW)
-    expect(d.entries['w3-sat']).toMatchObject({ completed: true, actualKm: 13 })
-    expect(d.entries['w3-sat'].activity).toBeUndefined()
+describe('logging a swim Saturday', () => {
+  it('a plain tick is a swim (the default); no km are logged', () => {
+    const d = completeEntry(emptyData(), 'w4-sat', undefined, NOW)
+    expect(d.entries['w4-sat']).toMatchObject({ completed: true, activity: 'swim' })
+    expect(d.entries['w4-sat'].actualKm).toBeUndefined()
   })
-  it('a swim is refused on a walk-only session and logs the walk instead', () => {
-    const d = completeEntry(emptyData(), 'w4-sat', 'swim', NOW)
-    expect(d.entries['w4-sat']).toMatchObject({ completed: true, actualKm: 15 })
-    expect(d.entries['w4-sat'].activity).toBeUndefined()
-    expect(completeEntry(emptyData(), 'w2-sat', 'swim', NOW).entries['w2-sat'].activity).toBeUndefined()
+  it('she can log a walk with whatever km she did; it counts as walking km', () => {
+    let d: AppData = { ...emptyData(), entries: { 'w4-sat': { completed: false, actualKm: 9.5 } } }
+    d = completeEntry(d, 'w4-sat', 'walk', NOW)
+    expect(d.entries['w4-sat']).toMatchObject({ completed: true, activity: 'walk', actualKm: 9.5 })
+    expect(computeStats(d, '2026-11-15').trainingKm).toBe(9.5)
+    expect(weekTotals(d, 4)).toEqual({ walkedKm: 9.5, plannedKm: 11 })
+    expect(swimStats(d, '2026-11-15')).toMatchObject({ swims: 0, walksOnSwimDays: 1 })
   })
-  it('switching after ticking, and unticking returns to the long walk default', () => {
-    let d = completeEntry(emptyData(), 'w5-sat', 'walk', NOW)
-    d = setEntryActivity(d, 'w5-sat', 'swim')
-    expect(d.entries['w5-sat']).toMatchObject({ completed: true, activity: 'swim' })
-    d = setEntryActivity(d, 'w5-sat', 'walk')
-    expect(d.entries['w5-sat'].activity).toBeUndefined()
-    d = setEntryActivity(d, 'w5-sat', 'swim')
-    d = uncompleteEntry(d, 'w5-sat')
-    expect(d.entries['w5-sat'].completed).toBe(false)
-    expect(d.entries['w5-sat'].activity).toBeUndefined()
-    expect(setEntryActivity(d, 'w4-sat', 'swim')).toBe(d) // walk-only Saturday cannot be switched
-  })
-  it('swims are their own activity: counted as swims, never as walking km', () => {
-    let d = completeEntry(emptyData(), 'w3-tue', 'walk', NOW) // 5 km
-    d = completeEntry(d, 'w3-sat', 'swim', NOW)
-    const st = computeStats(d, '2026-11-08')
-    expect(st.completed).toBe(2) // the Saturday is ticked off
+  it('either way the day counts as done, and swims never count as walking km', () => {
+    let d = completeEntry(emptyData(), 'w4-tue', undefined, NOW) // 5 km
+    d = completeEntry(d, 'w4-sat', 'swim', NOW)
+    const st = computeStats(d, '2026-11-15')
+    expect(st.completed).toBe(2)
     expect(st.trainingKm).toBe(5)
     expect(st.longestKm).toBe(5)
-    expect(weekTotals(d, 3)).toEqual({ walkedKm: 5, plannedKm: 23 })
-    expect(longWalkChart(d)[2]).toMatchObject({ planned: 13, actual: null })
-    const sw = swimStats(d, '2026-11-08')
-    expect(sw).toMatchObject({ swims: 1, longWalks: 0, eligibleSoFar: 1, swimDates: ['2026-11-07'] })
-    expect(celebrationFor('w3-sat', completeEntry(emptyData(), 'w3-tue', 'walk', NOW), d).text ?? '').not.toMatch(/longest/i)
+    expect(statusOf(SESSION_BY_ID['w4-sat'], d, '2026-11-15')).toBe('completed')
+    expect(weekTotals(d, 4)).toEqual({ walkedKm: 5, plannedKm: 11 })
+    expect(weeklyChart(d)[3]).toMatchObject({ planned: 11, actual: 5, walks: 1 })
+    expect(swimStats(d, '2026-11-15')).toMatchObject({ swims: 1, walksOnSwimDays: 0, swimDaysSoFar: 1, swimDates: ['2026-11-14'] })
+    expect(celebrationFor('w4-sat', completeEntry(emptyData(), 'w4-tue', undefined, NOW), d).text ?? '').not.toMatch(/longest/i)
   })
-  it('Sat 27 Feb (final long walk) offers no swim: a swim tick logs the long walk', () => {
-    const d = completeEntry(emptyData(), 'w19-sat', 'swim', NOW)
-    expect(d.entries['w19-sat']).toMatchObject({ completed: true, actualKm: 12 })
-    expect(d.entries['w19-sat'].activity).toBeUndefined()
-    expect(setEntryActivity(d, 'w19-sat', 'swim')).toBe(d)
-    expect(milestones(d).find((m) => m.id === 'finallong')!.unlocked).toBe(true)
+  it('switching after ticking, and unticking returns to the swim default', () => {
+    let d = completeEntry(emptyData(), 'w6-sat', 'swim', NOW)
+    d = setEntryActivity(d, 'w6-sat', 'walk')
+    expect(d.entries['w6-sat']).toMatchObject({ completed: true, activity: 'walk' })
+    d = setEntryActivity(d, 'w6-sat', 'swim')
+    expect(d.entries['w6-sat'].activity).toBe('swim')
+    d = uncompleteEntry(d, 'w6-sat')
+    expect(d.entries['w6-sat'].completed).toBe(false)
+    expect(d.entries['w6-sat'].activity).toBeUndefined()
+    expect(completeEntry(d, 'w6-sat', undefined, NOW).entries['w6-sat'].activity).toBe('swim')
   })
-  it('a swim already saved on Sat 27 Feb is left as she logged it', () => {
-    const old = { version: 1, displayName: '', entries: { 'w19-sat': { completed: true, activity: 'swim' } }, weekNotes: {}, seenMilestones: [] }
-    const d = validateData(old)
-    expect(d.entries['w19-sat']).toMatchObject({ completed: true, activity: 'swim' })
-    expect(milestones(d).find((m) => m.id === 'finallong')!.unlocked).toBe(false)
+  it('a swim cannot be logged on a long-walk Saturday: it logs the planned walk', () => {
+    const d = completeEntry(emptyData(), 'w5-sat', 'swim', NOW)
+    expect(d.entries['w5-sat']).toMatchObject({ completed: true, actualKm: 18 })
+    expect(d.entries['w5-sat'].activity).toBeUndefined()
+    expect(setEntryActivity(d, 'w5-sat', 'swim')).toBe(d)
+  })
+  it('an unticked past swim Saturday is "not ticked off yet", never a failure', () => {
+    expect(statusOf(SESSION_BY_ID['w4-sat'], emptyData(), '2026-11-20')).toBe('missed')
   })
 })
 
-describe('no-reload rule: picking a swim never changes the plan or later weeks', () => {
-  it('plan sessions, planned km and later weekly plan totals are identical with or without swims', () => {
+describe('no-reload rule: swims never change the plan or later weeks', () => {
+  it('plan sessions and planned weekly km are identical with or without swims', () => {
     const before = plannedSnapshot()
     const plannedWeeks = WEEKS.map((w) => weekTotals(emptyData(), w.number).plannedKm)
     let d: AppData = emptyData()
@@ -101,64 +83,86 @@ describe('no-reload rule: picking a swim never changes the plan or later weeks',
     expect(plannedSnapshot()).toBe(before)
     expect(WEEKS.map((w) => weekTotals(d, w.number).plannedKm)).toEqual(plannedWeeks)
     expect(weeklyChart(d).map((r) => r.planned)).toEqual(weeklyChart(emptyData()).map((r) => r.planned))
-    expect(SESSION_BY_ID['w4-sat'].plannedKm).toBe(15)
-    expect(SESSION_BY_ID['w6-sat'].plannedKm).toBe(16)
-    expect(SESSION_BY_ID['w8-sat'].plannedKm).toBe(20)
-    // untouched later entries stay empty: nothing is re-planned or auto-filled
-    expect(Object.keys(d.entries).sort()).toEqual(SWIM_ELIGIBLE_SESSIONS.map((s) => s.id).sort())
+    expect(Object.keys(d.entries).sort()).toEqual([...SWIM_IDS].sort())
+  })
+  it('long-walk chart only has weeks with a planned long walk or the event', () => {
+    expect(longWalkChart(emptyData()).map((r) => `${r.week}:${r.planned}`)).toEqual([
+      'W1:10', 'W2:12', 'W3:15', 'W5:18', 'W7:21', 'W9:24', 'W11:27', 'W13:30', 'W15:33', 'W17:13', 'W20:42',
+    ])
+  })
+  it('milestone for her longest training walk is the 33 km on Sat 30 Jan', () => {
+    const d = completeEntry(emptyData(), 'w15-sat', undefined, NOW)
+    expect(milestones(d).find((m) => m.id === 'peaklong')).toMatchObject({ unlocked: true })
+    expect(milestones(d).find((m) => m.id === 'km30')!.unlocked).toBe(true)
   })
 })
 
-describe('swim crowding note', () => {
-  const swim = (d: AppData, id: string) => completeEntry(d, id, 'swim', NOW)
-  const walk = (d: AppData, id: string) => completeEntry(d, id, 'walk', NOW)
-  it(`threshold is ${SWIM_CROWDING_THRESHOLD} swims in a row with no long walk in that span`, () => {
-    expect(SWIM_CROWDING_THRESHOLD).toBe(3)
-    expect(SWIM_CROWDING_NOTE).not.toMatch(/\u2014|\u2013/)
-  })
-  it('no note for 1 or 2 swims, or when long walks happen in between', () => {
-    let d = swim(emptyData(), 'w3-sat')
-    expect(swimsCrowdingLongWalks(d)).toBe(false)
-    d = swim(d, 'w5-sat')
-    expect(swimsCrowdingLongWalks(d)).toBe(false)
-    // Normal alternating use: swims on eligible Saturdays, long walks on the Saturdays between. No note.
-    let alt = emptyData()
-    for (const id of ['w3-sat', 'w4-sat', 'w5-sat', 'w6-sat', 'w7-sat']) alt = id === 'w4-sat' || id === 'w6-sat' ? walk(alt, id) : swim(alt, id)
-    expect(swimsCrowdingLongWalks(alt)).toBe(false)
-  })
-  it('note when 3 eligible Saturdays in a row are swims and no long walk was done in that span', () => {
-    let d = emptyData()
-    d = swim(d, 'w3-sat'); d = swim(d, 'w5-sat'); d = swim(d, 'w7-sat')
-    d = walk(d, 'w5-tue'); d = walk(d, 'w6-thu') // weekday walks do not count as long walks
-    expect(swimsCrowdingLongWalks(d)).toBe(true)
-    // one long walk inside the span clears it
-    expect(swimsCrowdingLongWalks(walk(d, 'w6-sat'))).toBe(false)
-    // the latest eligible Saturday walked as a long walk clears it
-    expect(swimsCrowdingLongWalks(walk(d, 'w9-sat'))).toBe(false)
-  })
-})
-
-describe('existing data survives', () => {
-  it('v1 data saved before swims existed loads unchanged, everything counts as walks', () => {
-    const old = { version: 1, displayName: 'Andrea', entries: { 'w1-sat': { completed: true, actualKm: 10, completedAt: '2026-10-24T15:00:00.000Z' }, 'w2-tue': { completed: true, actualKm: 4.5 }, 'w3-sat': { completed: false } }, weekNotes: { '1': 'Lovely first walk' }, seenMilestones: ['first'] }
-    const d = validateData(JSON.parse(JSON.stringify(old)))
+describe('existing data survives the new plan', () => {
+  const OLD = {
+    version: 1, displayName: 'Andrea',
+    entries: {
+      'w1-sat': { completed: true, actualKm: 10, completedAt: '2026-10-24T15:00:00.000Z' },
+      'w2-tue': { completed: true, actualKm: 4.5 },
+      'w2-thu': { completed: true, actualKm: 5, notes: 'Rainy but fine' },
+      'w2-sat': { completed: true, actualKm: 12.5, durationMin: 150 },
+    },
+    weekNotes: { '1': 'Lovely first walk' }, seenMilestones: ['first'],
+  }
+  it('her saved data loads unchanged with the same totals', () => {
+    const d = validateData(JSON.parse(JSON.stringify(OLD)))
     expect(d.displayName).toBe('Andrea')
-    expect(d.entries['w1-sat']).toMatchObject({ completed: true, actualKm: 10 })
-    expect(d.entries['w1-sat'].activity).toBeUndefined()
+    for (const [id, e] of Object.entries(OLD.entries)) expect(d.entries[id]).toMatchObject(e)
     expect(d.weekNotes['1']).toBe('Lovely first walk')
-    expect(computeStats(d, '2026-11-01')).toMatchObject({ completed: 2, trainingKm: 14.5 })
-    expect(swimStats(d, '2026-11-01').swims).toBe(0)
+    expect(d.seenMilestones).toEqual(['first'])
+    expect(d.version).toBe(1)
+    expect(d.archived).toBeUndefined()
+    expect(computeStats(d, '2026-11-01')).toMatchObject({ completed: 4, trainingKm: 32 })
     // an old export file (with the app wrapper) imports too
-    expect(validateData({ app: 'my-mammutmarsch-diary', exportedAt: 'x', data: old }).entries['w2-tue'].actualKm).toBe(4.5)
+    expect(validateData({ app: 'my-mammutmarsch-diary', exportedAt: 'x', data: OLD }).entries['w2-tue'].actualKm).toBe(4.5)
   })
-  it('swims round-trip through export and import; a swim on a walk-only session is dropped, the tick kept', () => {
-    let d = completeEntry(emptyData(), 'w3-sat', 'swim', NOW)
+  it('an old swim on w3-sat (a swim-or-walk Saturday in the old plan) stays logged as she recorded it', () => {
+    const old = { ...OLD, entries: { ...OLD.entries, 'w3-sat': { completed: true, activity: 'swim', notes: 'Pool' } } }
+    const d = validateData(old)
+    expect(d.entries['w3-sat']).toMatchObject({ completed: true, activity: 'swim', notes: 'Pool' })
+    expect(computeStats(d, '2026-11-08')).toMatchObject({ completed: 5, trainingKm: 32 })
+    expect(swimStats(d, '2026-11-08').swims).toBe(1)
+    // and it round-trips through export and import
+    expect(validateData(JSON.parse(exportPayload(d))).entries['w3-sat'].activity).toBe('swim')
+  })
+  it('an old ticked Saturday walk without a typed distance keeps the old planned km it counted', () => {
+    const old = { ...OLD, entries: { 'w3-sat': { completed: true }, 'w4-sat': { completed: true }, 'w5-sat': { completed: true, actualKm: 11 } } }
+    const d = validateData(old)
+    expect(d.entries['w3-sat'].actualKm).toBe(13) // old plan: 13 km
+    expect(d.entries['w4-sat'].actualKm).toBe(15) // old plan: 15 km long walk, now a swim Saturday
+    expect(d.entries['w4-sat'].activity).toBeUndefined() // a walk
+    expect(d.entries['w5-sat'].actualKm).toBe(11)
+    expect(computeStats(d, '2026-11-22').trainingKm).toBe(39)
+    // loading again changes nothing
+    expect(validateData(JSON.parse(JSON.stringify(d)))).toEqual(d)
+  })
+  it('a walk logged on a swim Saturday in the new app is never back-filled', () => {
+    const d = validateData({ ...OLD, entries: { 'w4-sat': { completed: true, activity: 'walk' } } })
+    expect(d.entries['w4-sat']).toMatchObject({ completed: true, activity: 'walk' })
+    expect(d.entries['w4-sat'].actualKm).toBeUndefined()
+  })
+  it('entries on Saturdays the plan no longer has (20 Feb, 27 Feb) are archived, not dropped', () => {
+    const old = { ...OLD, entries: { ...OLD.entries, 'w19-sat': { completed: true, activity: 'swim' }, 'w18-sat': { completed: false, notes: 'plan' } } }
+    const d = validateData(old)
+    expect(d.entries['w19-sat']).toBeUndefined()
+    expect(d.archived).toMatchObject({ 'w19-sat': { completed: true, activity: 'swim' }, 'w18-sat': { completed: false, notes: 'plan' } })
     const back = validateData(JSON.parse(exportPayload(d)))
-    expect(back.entries['w3-sat']).toMatchObject({ completed: true, activity: 'swim' })
-    d = { ...d, entries: { ...d.entries, 'w4-sat': { completed: true, actualKm: 10, activity: 'swim' } } }
-    const cleaned = validateData(JSON.parse(exportPayload(d)))
-    expect(cleaned.entries['w4-sat']).toMatchObject({ completed: true, actualKm: 10 })
-    expect(cleaned.entries['w4-sat'].activity).toBeUndefined()
-    expect(cleaned.version).toBe(1)
+    expect(back.archived).toEqual(d.archived)
+    expect(computeStats(back, '2027-03-01').completed).toBe(4)
+  })
+  it('a swim saved on a weekday is dropped, the tick kept', () => {
+    const d = validateData({ ...OLD, entries: { 'w3-tue': { completed: true, actualKm: 5, activity: 'swim' } } })
+    expect(d.entries['w3-tue']).toMatchObject({ completed: true, actualKm: 5 })
+    expect(d.entries['w3-tue'].activity).toBeUndefined()
+  })
+  it('monthly planned km leave swim Saturdays out', () => {
+    const nov = monthlyTotals(emptyData()).find((m) => m.key === '2026-11')!
+    const expected = ALL_SESSIONS.filter((s) => s.date.startsWith('2026-11')).reduce((a, s) => a + s.plannedKm, 0)
+    expect(nov.plannedKm).toBe(expected)
+    expect(ALL_SESSIONS.filter((s) => s.date.startsWith('2026-11') && s.type === 'swim').every((s) => s.plannedKm === 0)).toBe(true)
   })
 })

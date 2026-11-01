@@ -2,7 +2,8 @@ import { AlertCircle, CalendarDays, CheckCircle2, ChevronRight, Footprints, Moun
 import { useMemo, useState } from 'react'
 import { daysBetween, formatLong } from '../lib/dates'
 import { EVENT_DATE, TRAINING_START, TYPE_HINT, TYPE_LABEL, SESSION_BY_ID, SWIM_HINT, isSwimEligible } from '../lib/plan'
-import { SWIM_CROWDING_NOTE, computeStats, effectiveDate, formatKm, isSwim, kmFor, missedSessions, sortedSessions, statusOf, swimsCrowdingLongWalks, upcomingSessions } from '../lib/stats'
+import { computeStats, effectiveDate, formatKm, isSwim, kmFor, missedSessions, sortedSessions, statusOf, upcomingSessions } from '../lib/stats'
+import type { Activity } from '../lib/storage'
 import type { Diary } from '../lib/useDiary'
 import { Card, SectionTitle, SessionRow, StatusPill } from './ui'
 
@@ -14,7 +15,7 @@ const MESSAGES = [
   'Your Mammutmarsch adventure is getting closer.',
 ]
 
-export function TodayView({ diary, today, onOpen, onGoDiary }: { diary: Diary; today: string; onOpen: (id: string) => void; onGoDiary: () => void }) {
+export function TodayView({ diary, today, onOpen, onGoDiary }: { diary: Diary; today: string; onOpen: (id: string, activity?: Activity) => void; onGoDiary: () => void }) {
   const { data } = diary
   const stats = computeStats(data, today)
   const [justDone, setJustDone] = useState<string | null>(null)
@@ -77,7 +78,7 @@ export function TodayView({ diary, today, onOpen, onGoDiary }: { diary: Diary; t
         {focus ? (
           <FocusCard key={focus.id} diary={diary} today={today} id={focus.id} justDone={justDone === focus.id}
             onComplete={() => { diary.complete(focus.id); setJustDone(focus.id) }}
-            onSwim={() => { diary.complete(focus.id, 'swim'); setJustDone(focus.id) }}
+            onWalkInstead={() => onOpen(focus.id, 'walk')}
             onUndo={() => { diary.uncomplete(focus.id); setJustDone(null) }}
             onNext={() => setJustDone(null)}
             onOpen={() => onOpen(focus.id)} />
@@ -87,8 +88,6 @@ export function TodayView({ diary, today, onOpen, onGoDiary }: { diary: Diary; t
             <p className="mt-2 text-lg font-bold text-forest">All walks done. What a journey!</p>
           </Card>
         )}
-
-        {swimsCrowdingLongWalks(data) && <SwimCrowdingNote />}
 
         {missed.length > 0 && (
           <button type="button" onClick={onGoDiary} className="mt-4 flex w-full items-center gap-3 rounded-2xl bg-amber-soft p-4 text-left ring-1 ring-amber-line">
@@ -128,17 +127,8 @@ function Stat({ value, suffix, label }: { value: string; suffix: string; label: 
   )
 }
 
-export function SwimCrowdingNote() {
-  return (
-    <div role="note" data-testid="swim-crowding-note" className="mt-4 flex items-start gap-3 rounded-2xl bg-water-soft p-4 text-sm text-forest ring-1 ring-water/30">
-      <WavesHorizontal className="mt-0.5 shrink-0 text-water" size={22} />
-      <span>{SWIM_CROWDING_NOTE}</span>
-    </div>
-  )
-}
-
-function FocusCard({ diary, today, id, justDone, onComplete, onSwim, onUndo, onNext, onOpen }: {
-  diary: Diary; today: string; id: string; justDone: boolean; onComplete: () => void; onSwim: () => void; onUndo: () => void; onNext: () => void; onOpen: () => void
+function FocusCard({ diary, today, id, justDone, onComplete, onWalkInstead, onUndo, onNext, onOpen }: {
+  diary: Diary; today: string; id: string; justDone: boolean; onComplete: () => void; onWalkInstead: () => void; onUndo: () => void; onNext: () => void; onOpen: () => void
 }) {
   const { data } = diary
   const s = SESSION_BY_ID[id]
@@ -146,8 +136,10 @@ function FocusCard({ diary, today, id, justDone, onComplete, onSwim, onUndo, onN
   const date = effectiveDate(s, data)
   const e = data.entries[id]
   const isToday = date === today
-  const heading = status === 'completed' ? (isToday ? 'Today’s walk' : 'Walk complete') : isToday ? 'Today’s walk' : 'Next scheduled walk'
   const swimOption = isSwimEligible(s)
+  const heading = swimOption
+    ? (isToday ? 'Today' : status === 'completed' ? 'Swim day done' : 'Next up')
+    : status === 'completed' ? (isToday ? 'Today’s walk' : 'Walk complete') : isToday ? 'Today’s walk' : 'Next scheduled walk'
 
   if (status === 'completed') {
     return (
@@ -159,7 +151,7 @@ function FocusCard({ diary, today, id, justDone, onComplete, onSwim, onUndo, onN
               <CheckCircle2 className="anim-pop shrink-0 text-leaf" size={44} strokeWidth={2.25} />
               <div>
                 <p className="text-xl font-extrabold text-forest">Well done!</p>
-                <p className="text-sm text-forest/80">{isSwim(e) ? 'Swim ticked off' : `${TYPE_LABEL[s.type]} · ${formatKm(kmFor(s, e))} km ticked off`}</p>
+                <p className="text-sm text-forest/80">{isSwim(e) ? 'Swim ticked off' : swimOption ? `Walk · ${formatKm(kmFor(s, e))} km ticked off` : `${TYPE_LABEL[s.type]} · ${formatKm(kmFor(s, e))} km ticked off`}</p>
               </div>
             </div>
           </div>
@@ -195,23 +187,29 @@ function FocusCard({ diary, today, id, justDone, onComplete, onSwim, onUndo, onN
               <div className="mt-2"><StatusPill status={status} isEvent={s.isEvent} /></div>
             </div>
             <div className="shrink-0 text-right">
-              <span className={`text-5xl font-extrabold leading-none ${s.isEvent ? 'text-lime' : 'text-forest'}`}>{formatKm(s.plannedKm)}</span>
-              <span className={`ml-1 text-lg font-bold ${s.isEvent ? 'text-lime' : 'text-forest/70'}`}>km</span>
+              {swimOption ? <WavesHorizontal size={48} className="text-water" aria-hidden /> : <>
+                <span className={`text-5xl font-extrabold leading-none ${s.isEvent ? 'text-lime' : 'text-forest'}`}>{formatKm(s.plannedKm)}</span>
+                <span className={`ml-1 text-lg font-bold ${s.isEvent ? 'text-lime' : 'text-forest/70'}`}>km</span>
+              </>}
             </div>
           </div>
-          <p className={`mt-3 flex gap-2 text-sm ${s.isEvent ? 'text-white/80' : 'text-ink/70'}`}><Footprints size={16} className="mt-0.5 shrink-0" />{TYPE_HINT[s.type]}</p>
+          <p className={`mt-3 flex gap-2 text-sm ${s.isEvent ? 'text-white/80' : 'text-ink/70'}`}>{swimOption ? <WavesHorizontal size={16} className="mt-0.5 shrink-0" /> : <Footprints size={16} className="mt-0.5 shrink-0" />}{TYPE_HINT[s.type]}</p>
         </button>
         <div className="p-4 pt-0">
-          <button type="button" onClick={onComplete} className="flex min-h-[60px] w-full items-center justify-center gap-2 rounded-2xl bg-leaf px-4 text-lg font-bold text-white shadow-soft active:scale-[0.99]">
-            <CheckCircle2 size={24} /> Mark Complete
-          </button>
-          {swimOption && (
+          {swimOption ? (
             <>
-              <button type="button" onClick={onSwim} data-testid="swim-instead" className="mt-2 flex min-h-[52px] w-full items-center justify-center gap-2 rounded-2xl bg-water-soft px-4 font-bold text-water ring-1 ring-water/30 active:scale-[0.99]">
-                <WavesHorizontal size={20} /> I swam instead
+              <button type="button" onClick={onComplete} data-testid="i-swam" className="flex min-h-[60px] w-full items-center justify-center gap-2 rounded-2xl bg-water px-4 text-lg font-bold text-white shadow-soft active:scale-[0.99]">
+                <WavesHorizontal size={24} /> I swam
+              </button>
+              <button type="button" onClick={onWalkInstead} data-testid="walk-instead" className="mt-2 flex min-h-[52px] w-full items-center justify-center gap-2 rounded-2xl bg-white px-4 font-bold text-forest ring-1 ring-forest/20 active:scale-[0.99]">
+                <Footprints size={20} /> I walked instead
               </button>
               <p className="mt-2 text-center text-xs text-ink/60">{SWIM_HINT}</p>
             </>
+          ) : (
+            <button type="button" onClick={onComplete} className="flex min-h-[60px] w-full items-center justify-center gap-2 rounded-2xl bg-leaf px-4 text-lg font-bold text-white shadow-soft active:scale-[0.99]">
+              <CheckCircle2 size={24} /> Mark Complete
+            </button>
           )}
         </div>
       </Card>

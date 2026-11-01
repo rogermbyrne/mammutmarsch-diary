@@ -37,17 +37,18 @@ let t = await text()
 if (!t.includes('My Mammutmarsch Diary')) fail('title missing')
 if (!t.includes('42 km · Leipzig · 6 March 2027')) fail('subtitle missing')
 // First load: nothing is pre-ticked.
-if (!/0\s*\/57/.test(t)) fail('0/57 missing on first load')
+if (!/0\s*\/55/.test(t)) fail('0/55 missing on first load')
 const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('mammutmarsch-diary-v1') || 'null'))
 if (saved && Object.values(saved.entries).some((e) => e.completed)) fail('something was pre-ticked on first load')
 await overflow('today'); await page.screenshot({ path: `${shots}/${tag}-today.png`, fullPage: true })
-// complete next walk
-await clickText('button', 'Mark Complete')
+// complete next walk (on a swim Saturday the main button is "I swam")
+const swimDay = await page.$('[data-testid="i-swam"]')
+if (swimDay) { await swimDay.click(); await new Promise((r) => setTimeout(r, 250)) } else await clickText('button', 'Mark Complete')
 t = await text()
 if (!t.includes('Well done')) fail('confirmation not shown')
 const isEventDay = FAKE && FAKE.startsWith('2027-03-06')
 // on event day the event is ticked: walked = 42 km
-if (isEventDay ? !t.includes('42km') && !t.includes('42\nkm') : !/1\s*\/57/.test(t)) fail('dashboard not updated')
+if (isEventDay ? !t.includes('42km') && !t.includes('42\nkm') : !/1\s*\/55/.test(t)) fail('dashboard not updated')
 await page.screenshot({ path: `${shots}/${tag}-today-done.png`, fullPage: true })
 // persistence
 await page.reload({ waitUntil: 'networkidle0' })
@@ -56,13 +57,14 @@ const persisted = await page.evaluate(() => Object.values(JSON.parse(localStorag
 if (persisted !== 1) fail('not persisted after reload')
 // undo: reset storage for the diary part
 await page.evaluate(() => localStorage.clear()); await page.reload({ waitUntil: 'networkidle0' })
-if (!/0\s*\/57/.test(await text())) fail('reset did not return to 0/57')
+if (!/0\s*\/55/.test(await text())) fail('reset did not return to 0/55')
 // diary
 await clickText('nav button', 'Diary')
 await overflow('diary'); await page.screenshot({ path: `${shots}/${tag}-diary.png`, fullPage: true })
 const checks = await page.$$('[role=checkbox]')
 const inWeek1 = FAKE && FAKE < '2026-10-26'
-if (checks.length !== (inWeek1 ? 1 : 3)) fail('unexpected walk checkbox count in current week: ' + checks.length)
+const noSatWeek = FAKE && FAKE >= '2027-02-15' && FAKE < '2027-03-01' // weeks 18 and 19: Tue and Thu only
+if (checks.length !== (inWeek1 ? 1 : noSatWeek ? 2 : 3)) fail('unexpected walk checkbox count in current week: ' + checks.length)
 await checks[0].click(); await new Promise((r) => setTimeout(r, 200))
 const ac = await page.evaluate(() => document.querySelector('[role=checkbox]').getAttribute('aria-checked'))
 if (ac !== 'true') fail('diary checkbox did not toggle')
