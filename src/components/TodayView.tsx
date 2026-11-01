@@ -1,8 +1,8 @@
-import { AlertCircle, CalendarDays, CheckCircle2, ChevronRight, Footprints, Mountain, PencilLine, Sparkles, Undo2 } from 'lucide-react'
+import { AlertCircle, CalendarDays, CheckCircle2, ChevronRight, Footprints, Mountain, PencilLine, Sparkles, Undo2, WavesHorizontal } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { daysBetween, formatLong } from '../lib/dates'
-import { EVENT_DATE, TRAINING_START, TYPE_HINT, TYPE_LABEL, SESSION_BY_ID } from '../lib/plan'
-import { computeStats, effectiveDate, formatKm, kmFor, missedSessions, sortedSessions, statusOf, upcomingSessions } from '../lib/stats'
+import { EVENT_DATE, TRAINING_START, TYPE_HINT, TYPE_LABEL, SESSION_BY_ID, SWIM_HINT, isSwimEligible } from '../lib/plan'
+import { SWIM_CROWDING_NOTE, computeStats, effectiveDate, formatKm, isSwim, kmFor, missedSessions, sortedSessions, statusOf, swimsCrowdingLongWalks, upcomingSessions } from '../lib/stats'
 import type { Diary } from '../lib/useDiary'
 import { Card, SectionTitle, SessionRow, StatusPill } from './ui'
 
@@ -77,6 +77,7 @@ export function TodayView({ diary, today, onOpen, onGoDiary }: { diary: Diary; t
         {focus ? (
           <FocusCard key={focus.id} diary={diary} today={today} id={focus.id} justDone={justDone === focus.id}
             onComplete={() => { diary.complete(focus.id); setJustDone(focus.id) }}
+            onSwim={() => { diary.complete(focus.id, 'swim'); setJustDone(focus.id) }}
             onUndo={() => { diary.uncomplete(focus.id); setJustDone(null) }}
             onNext={() => setJustDone(null)}
             onOpen={() => onOpen(focus.id)} />
@@ -86,6 +87,8 @@ export function TodayView({ diary, today, onOpen, onGoDiary }: { diary: Diary; t
             <p className="mt-2 text-lg font-bold text-forest">All walks done. What a journey!</p>
           </Card>
         )}
+
+        {swimsCrowdingLongWalks(data) && <SwimCrowdingNote />}
 
         {missed.length > 0 && (
           <button type="button" onClick={onGoDiary} className="mt-4 flex w-full items-center gap-3 rounded-2xl bg-amber-soft p-4 text-left ring-1 ring-amber-line">
@@ -125,8 +128,17 @@ function Stat({ value, suffix, label }: { value: string; suffix: string; label: 
   )
 }
 
-function FocusCard({ diary, today, id, justDone, onComplete, onUndo, onNext, onOpen }: {
-  diary: Diary; today: string; id: string; justDone: boolean; onComplete: () => void; onUndo: () => void; onNext: () => void; onOpen: () => void
+export function SwimCrowdingNote() {
+  return (
+    <div role="note" data-testid="swim-crowding-note" className="mt-4 flex items-start gap-3 rounded-2xl bg-water-soft p-4 text-sm text-forest ring-1 ring-water/30">
+      <WavesHorizontal className="mt-0.5 shrink-0 text-water" size={22} />
+      <span>{SWIM_CROWDING_NOTE}</span>
+    </div>
+  )
+}
+
+function FocusCard({ diary, today, id, justDone, onComplete, onSwim, onUndo, onNext, onOpen }: {
+  diary: Diary; today: string; id: string; justDone: boolean; onComplete: () => void; onSwim: () => void; onUndo: () => void; onNext: () => void; onOpen: () => void
 }) {
   const { data } = diary
   const s = SESSION_BY_ID[id]
@@ -135,6 +147,7 @@ function FocusCard({ diary, today, id, justDone, onComplete, onUndo, onNext, onO
   const e = data.entries[id]
   const isToday = date === today
   const heading = status === 'completed' ? (isToday ? 'Today’s walk' : 'Walk complete') : isToday ? 'Today’s walk' : 'Next scheduled walk'
+  const swimOption = isSwimEligible(s)
 
   if (status === 'completed') {
     return (
@@ -146,7 +159,7 @@ function FocusCard({ diary, today, id, justDone, onComplete, onUndo, onNext, onO
               <CheckCircle2 className="anim-pop shrink-0 text-leaf" size={44} strokeWidth={2.25} />
               <div>
                 <p className="text-xl font-extrabold text-forest">Well done!</p>
-                <p className="text-sm text-forest/80">{TYPE_LABEL[s.type]} · {formatKm(kmFor(s, e))} km ticked off</p>
+                <p className="text-sm text-forest/80">{isSwim(e) ? 'Swim ticked off' : `${TYPE_LABEL[s.type]} · ${formatKm(kmFor(s, e))} km ticked off`}</p>
               </div>
             </div>
           </div>
@@ -192,6 +205,14 @@ function FocusCard({ diary, today, id, justDone, onComplete, onUndo, onNext, onO
           <button type="button" onClick={onComplete} className="flex min-h-[60px] w-full items-center justify-center gap-2 rounded-2xl bg-leaf px-4 text-lg font-bold text-white shadow-soft active:scale-[0.99]">
             <CheckCircle2 size={24} /> Mark Complete
           </button>
+          {swimOption && (
+            <>
+              <button type="button" onClick={onSwim} data-testid="swim-instead" className="mt-2 flex min-h-[52px] w-full items-center justify-center gap-2 rounded-2xl bg-water-soft px-4 font-bold text-water ring-1 ring-water/30 active:scale-[0.99]">
+                <WavesHorizontal size={20} /> I swam instead
+              </button>
+              <p className="mt-2 text-center text-xs text-ink/60">{SWIM_HINT}</p>
+            </>
+          )}
         </div>
       </Card>
     </>

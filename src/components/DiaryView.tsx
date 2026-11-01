@@ -2,7 +2,7 @@ import { ChevronLeft, ChevronRight, Leaf, NotebookPen, Printer } from 'lucide-re
 import { useEffect, useState } from 'react'
 import { addDays, dayName, daysBetween, formatRange, parseISO } from '../lib/dates'
 import { TOTAL_WEEKS, WEEKS, weekForDate } from '../lib/plan'
-import { effectiveDate, formatKm, isDone, sortedSessions, weekTotals } from '../lib/stats'
+import { effectiveDate, formatKm, isDone, isSwim, sortedSessions, weekTotals } from '../lib/stats'
 import type { Diary } from '../lib/useDiary'
 import { Card, SessionRow } from './ui'
 
@@ -89,11 +89,12 @@ export function DiaryView({ diary, today, onOpen, onPrint }: { diary: Diary; tod
             const isToday = d === today
             const done = s && isDone(s, data)
             const missed = s && !done && d < today
+            const swam = s && isSwim(data.entries[s.id])
             return (
               <div key={d} className={`flex flex-col items-center rounded-xl py-1.5 ${isToday ? 'bg-forest text-white' : ''}`} aria-current={isToday ? 'date' : undefined}>
                 <span className={`text-[0.7rem] font-semibold ${isToday ? 'text-white/80' : 'text-ink/50'}`}>{dayName(d).charAt(0)}</span>
                 <span className="text-sm font-bold">{parseISO(d).day}</span>
-                <span className={`mt-1 h-2 w-2 rounded-full ${!s ? 'bg-transparent' : s.isEvent ? 'bg-lime ring-1 ring-forest' : done ? 'bg-leaf' : missed ? 'bg-amber-line' : isToday ? 'bg-lime' : 'border border-ink/30'}`} />
+                <span className={`mt-1 h-2 w-2 rounded-full ${!s ? 'bg-transparent' : s.isEvent ? 'bg-lime ring-1 ring-forest' : swam ? 'bg-water' : done ? 'bg-leaf' : missed ? 'bg-amber-line' : isToday ? 'bg-lime' : 'border border-ink/30'}`} />
               </div>
             )
           })}
@@ -119,6 +120,7 @@ export function DiaryView({ diary, today, onOpen, onPrint }: { diary: Diary; tod
       <div className="mt-6 flex flex-wrap justify-center gap-x-4 gap-y-2 text-xs text-ink/70">
         <Legend dot="bg-leaf" label="Completed" />
         <Legend dot="border border-ink/40" label="Upcoming" />
+        <Legend dot="bg-water" label="Swim" />
         <Legend dot="bg-amber-line" label="Not ticked off" />
         <Legend dot="bg-lime ring-1 ring-forest" label="Mammutmarsch" />
       </div>

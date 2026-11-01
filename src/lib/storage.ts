@@ -1,7 +1,9 @@
 import { isValidISO } from './dates'
-import { SESSION_BY_ID, TOTAL_WEEKS } from './plan'
+import { SESSION_BY_ID, TOTAL_WEEKS, isSwimEligible } from './plan'
 
 export type Difficulty = 'easy' | 'moderate' | 'hard'
+/** What she did for a session. Missing means the planned walk (all data saved before swims existed). */
+export type Activity = 'walk' | 'swim'
 
 export interface Entry {
   completed: boolean
@@ -12,6 +14,8 @@ export interface Entry {
   notes?: string
   footIssues?: string
   rescheduledDate?: string
+  /** Only ever 'swim' on a swim-eligible Saturday; absent = the planned walk. Optional, so v1 data needs no migration. */
+  activity?: Activity
 }
 
 export interface AppData {
@@ -59,6 +63,7 @@ export function validateData(raw: unknown): AppData {
       footIssues: str(x.footIssues),
       rescheduledDate: isValidISO(x.rescheduledDate) ? x.rescheduledDate : undefined,
     }
+    if (x.activity === 'swim' && isSwimEligible(SESSION_BY_ID[id])) entries[id].activity = 'swim'
   }
   const weekNotes: Record<string, string> = {}
   if (src.weekNotes && typeof src.weekNotes === 'object') {

@@ -11,6 +11,7 @@ export default {
         paper: '#F8F9F5',
         ink: '#24332C',
         cream: '#FBF7EE',
+        water: { DEFAULT: '#2F7FA8', soft: '#DDEFF7' },
         amber: { soft: '#FDF1D8', ink: '#8A5A00', line: '#E8B45A' },
       },
       fontFamily: {

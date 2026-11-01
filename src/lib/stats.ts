@@ -1,7 +1,7 @@
 import type { ISODate } from './dates'
 import { daysBetween } from './dates'
 import {
-  ALL_SESSIONS, EVENT_DATE, EVENT_SESSION, FINAL_LONG_ID, SESSION_BY_ID, TRAINING_SESSIONS, WEEKS, type Session,
+  ALL_SESSIONS, EVENT_DATE, EVENT_SESSION, FINAL_LONG_ID, SESSION_BY_ID, SWIM_ELIGIBLE_SESSIONS, TRAINING_SESSIONS, WEEKS, type Session,
 } from './plan'
 import type { AppData, Entry } from './storage'
 
@@ -12,7 +12,11 @@ export const isDone = (s: Session, data: AppData): boolean => data.entries[s.id]
 /** Distance that counts toward every total: the logged actual km for a completed walk,
  *  falling back to the planned km only if no actual was logged. Not completed counts 0. */
 export const kmFor = (s: Session, e: Entry | undefined): number =>
-  e?.completed ? (typeof e.actualKm === 'number' ? e.actualKm : s.plannedKm) : 0
+  e?.completed && e.activity !== 'swim' ? (typeof e.actualKm === 'number' ? e.actualKm : s.plannedKm) : 0
+/** A ticked session that she logged as a swim (only possible on swim-eligible Saturdays). */
+export const isSwim = (e: Entry | undefined): boolean => e?.completed === true && e.activity === 'swim'
+/** A ticked long walk that was walked (not swapped for a swim). */
+export const isLongWalked = (s: Session, e: Entry | undefined): boolean => s.type === 'long' && e?.completed === true && e.activity !== 'swim'
 
 export function statusOf(s: Session, data: AppData, today: ISODate): Status {
   if (isDone(s, data)) return 'completed'
@@ -115,7 +119,7 @@ export function longWalkChart(data: AppData): LongRow[] {
   return WEEKS.map((w) => {
     const s = w.sessions.find((x) => x.type === 'long' || x.type === 'event')!
     const e = data.entries[s.id]
-    return { week: `W${w.number}`, planned: s.plannedKm, actual: e?.completed ? kmFor(s, e) : null }
+    return { week: `W${w.number}`, planned: s.plannedKm, actual: e?.completed && e.activity !== 'swim' ? kmFor(s, e) : null }
   })
 }
 
@@ -131,7 +135,7 @@ export function milestones(data: AppData): Milestone[] {
     { id: 'km25', title: 'First 25 km walk', detail: 'Recorded a walk of 25 km or more.', unlocked: maxKm >= 25 },
     { id: 'km30', title: 'First 30 km walk', detail: 'Recorded a walk of 30 km or more.', unlocked: maxKm >= 30 },
     { id: 'half', title: 'Halfway there', detail: `Completed 50% of your training walks (${Math.ceil(TRAINING_SESSIONS.length / 2)} of ${TRAINING_SESSIONS.length}).`, unlocked: done.length >= TRAINING_SESSIONS.length / 2 },
-    { id: 'finallong', title: 'Final long walk done', detail: `Completed the last long training walk (Week ${SESSION_BY_ID[FINAL_LONG_ID].week}).`, unlocked: isDone(ALL_SESSIONS.find((s) => s.id === FINAL_LONG_ID)!, data) },
+    { id: 'finallong', title: 'Final long walk done', detail: `Completed the last long training walk (Week ${SESSION_BY_ID[FINAL_LONG_ID].week}).`, unlocked: isLongWalked(SESSION_BY_ID[FINAL_LONG_ID], data.entries[FINAL_LONG_ID]) },
     { id: 'finish', title: 'Mammutmarsch finisher', detail: 'You walked the 42 km Mammutmarsch Leipzig!', unlocked: isDone(EVENT_SESSION, data) },
   ]
 }
@@ -141,7 +145,7 @@ export function longWalkPace(data: AppData): { pace: number; walks: number } | n
   let km = 0, min = 0, walks = 0
   for (const s of TRAINING_SESSIONS) {
     const e = data.entries[s.id]
-    if (s.type !== 'long' || !e?.completed || !e.durationMin) continue
+    if (s.type !== 'long' || !e?.completed || !e.durationMin || e.activity === 'swim') continue
     const k = kmFor(s, e)
     if (k <= 0) continue
     km += k; min += e.durationMin; walks++
@@ -205,3 +209,38 @@ export function celebrationFor(id: string, before: AppData, after: AppData): Cel
   if (TRAINING_SESSIONS.filter((x) => isDone(x, before)).length === 0) return { level: 'big', text: 'First walk done!' }
   return { level: 'small' }
 }
+
+export interface SwimStats { swims: number; longWalks: number; eligibleSoFar: number; swimDates: ISODate[] }
+
+/** How often she picked a swim on the swim-or-walk Saturdays, so swim frequency is visible. */
+export function swimStats(data: AppData, today: ISODate): SwimStats {
+  const swimDates: ISODate[] = []
+  let longWalks = 0, eligibleSoFar = 0
+  for (const s of SWIM_ELIGIBLE_SESSIONS) {
+    const e = data.entries[s.id]
+    if (isSwim(e)) swimDates.push(effectiveDate(s, data))
+    else if (isLongWalked(s, e)) longWalks++
+    if (s.date <= today || e?.completed) eligibleSoFar++
+  }
+  return { swims: swimDates.length, longWalks, eligibleSoFar, swimDates }
+}
+
+/** Swims in a row on swim-or-walk Saturdays (with no long walk anywhere in that span) that trigger the note. */
+export const SWIM_CROWDING_THRESHOLD = 3
+
+/** Only true when swims are crowding out long walks entirely: the latest SWIM_CROWDING_THRESHOLD swim-or-walk
+ *  Saturdays she has logged were all swims, and she logged no long walk at all (on any Saturday) in that span. */
+export function swimsCrowdingLongWalks(data: AppData): boolean {
+  const logged = SWIM_ELIGIBLE_SESSIONS.filter((s) => data.entries[s.id]?.completed)
+  if (logged.length < SWIM_CROWDING_THRESHOLD) return false
+  const run = logged.slice(-SWIM_CROWDING_THRESHOLD)
+  if (!run.every((s) => isSwim(data.entries[s.id]))) return false
+  const from = effectiveDate(run[0], data), to = effectiveDate(run[run.length - 1], data)
+  const walkedLong = TRAINING_SESSIONS.some((s) => {
+    const d = effectiveDate(s, data)
+    return d >= from && d <= to && isLongWalked(s, data.entries[s.id])
+  })
+  return !walkedLong
+}
+
+export const SWIM_CROWDING_NOTE = `Your last ${SWIM_CROWDING_THRESHOLD} swim-or-walk Saturdays were all swims, with no long walk in between. Swimming is great, but long walks build the time on your feet you need for 42 km, so try to fit one in soon.`

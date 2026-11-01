@@ -1,9 +1,9 @@
-import { CalendarClock, CheckCircle2, Footprints, Undo2, X } from 'lucide-react'
+import { CalendarClock, CheckCircle2, Footprints, Undo2, WavesHorizontal, X } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { formatLong, isValidISO } from '../lib/dates'
-import { SESSION_BY_ID, TYPE_HINT, TYPE_LABEL } from '../lib/plan'
+import { SESSION_BY_ID, SWIM_HINT, SWIM_LABEL, TYPE_HINT, TYPE_LABEL, isSwimEligible } from '../lib/plan'
 import { effectiveDate, formatKm, statusOf } from '../lib/stats'
-import type { Difficulty } from '../lib/storage'
+import type { Activity, Difficulty } from '../lib/storage'
 import type { Diary } from '../lib/useDiary'
 import { StatusPill } from './ui'
 
@@ -12,6 +12,12 @@ export function WalkSheet({ id, diary, today, onClose }: { id: string; diary: Di
   const e = diary.data.entries[id]
   const status = statusOf(s, diary.data, today)
   const done = status === 'completed'
+  const swimOption = isSwimEligible(s)
+  // On a swim-or-walk Saturday she picks what she did. The long walk is the default; a ticked swim keeps its choice.
+  const [choice, setChoice] = useState<Activity>(e?.activity === 'swim' ? 'swim' : 'walk')
+  const activity: Activity = done ? (e?.activity === 'swim' ? 'swim' : 'walk') : choice
+  const swim = swimOption && activity === 'swim'
+  const pick = (a: Activity) => { if (done) diary.setActivity(id, a); setChoice(a) }
   // Prefilled with the actual km if logged, otherwise the planned km, so she only edits it when she walked a different distance.
   const [km, setKm] = useState(String(e?.actualKm ?? s.plannedKm))
   const [hours, setHours] = useState(e?.durationMin ? String(Math.floor(e.durationMin / 60)) : '')
@@ -44,8 +50,8 @@ export function WalkSheet({ id, diary, today, onClose }: { id: string; diary: Di
   }
 
   const parse = (): { ok: true; patch: Parameters<Diary['setEntry']>[1] } | { ok: false; msg: string } => {
-    const kmVal = km.trim() === '' ? undefined : Number(km.replace(',', '.'))
-    if (kmVal !== undefined && (!Number.isFinite(kmVal) || kmVal < 0 || kmVal > 200)) return { ok: false, msg: 'Please enter a distance between 0 and 200 km.' }
+    const kmVal = swim ? e?.actualKm : km.trim() === '' ? undefined : Number(km.replace(',', '.'))
+    if (!swim && kmVal !== undefined && (!Number.isFinite(kmVal) || kmVal < 0 || kmVal > 200)) return { ok: false, msg: 'Please enter a distance between 0 and 200 km.' }
     const h = hours.trim() === '' ? 0 : Number(hours)
     const m = mins.trim() === '' ? 0 : Number(mins)
     if (!Number.isInteger(h) || h < 0 || h > 48) return { ok: false, msg: 'Hours should be a whole number between 0 and 48.' }
@@ -71,7 +77,7 @@ export function WalkSheet({ id, diary, today, onClose }: { id: string; diary: Di
     setErr(null)
     diary.setEntry(id, r.patch)
     if (thenComplete) {
-      diary.complete(id)
+      diary.complete(id, swim ? 'swim' : 'walk')
       if (km.trim() === '') setKm(String(s.plannedKm))
     }
     setSaved(true)
@@ -88,8 +94,8 @@ export function WalkSheet({ id, diary, today, onClose }: { id: string; diary: Di
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <p className={`text-sm font-semibold ${s.isEvent ? 'text-lime' : 'text-leaf'}`}>{formatLong(effectiveDate(s, diary.data), true)} · Week {s.week}</p>
-              <h2 id="sheet-title" className={`text-2xl font-extrabold leading-tight ${s.isEvent ? 'text-white' : 'text-forest'}`}>{TYPE_LABEL[s.type]}</h2>
-              <p className={`mt-1 text-sm ${s.isEvent ? 'text-white/80' : 'text-ink/70'}`}>Planned: <strong>{formatKm(s.plannedKm)} km</strong></p>
+              <h2 id="sheet-title" className={`text-2xl font-extrabold leading-tight ${s.isEvent ? 'text-white' : 'text-forest'}`}>{swim ? SWIM_LABEL : TYPE_LABEL[s.type]}</h2>
+              <p className={`mt-1 text-sm ${s.isEvent ? 'text-white/80' : 'text-ink/70'}`}>{swim ? <>Instead of the planned <strong>{formatKm(s.plannedKm)} km</strong> long walk</> : <>Planned: <strong>{formatKm(s.plannedKm)} km</strong></>}</p>
             </div>
             <button type="button" onClick={onClose} aria-label="Close" className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${s.isEvent ? 'bg-white/10 text-white' : 'bg-white text-forest shadow-soft'}`}>
               <X size={22} />
@@ -99,7 +105,24 @@ export function WalkSheet({ id, diary, today, onClose }: { id: string; diary: Di
         </div>
 
         <div className="px-5 pb-8">
-          <p className="mt-2 flex gap-2 text-sm text-ink/70"><Footprints size={16} className="mt-0.5 shrink-0" />{TYPE_HINT[s.type]}</p>
+          <p className="mt-2 flex gap-2 text-sm text-ink/70">{swim ? <WavesHorizontal size={16} className="mt-0.5 shrink-0" /> : <Footprints size={16} className="mt-0.5 shrink-0" />}{swim ? 'Enjoy the swim. Your plan and next week stay exactly the same.' : TYPE_HINT[s.type]}</p>
+
+          {swimOption && (
+            <div className="mt-4">
+              <span className="mb-1.5 block text-sm font-semibold text-forest" id="activity-label">What did you do?</span>
+              <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-labelledby="activity-label">
+                <button type="button" role="radio" aria-checked={activity === 'walk'} data-activity="walk" onClick={() => pick('walk')}
+                  className={`flex min-h-[48px] items-center justify-center gap-1.5 rounded-xl text-sm font-semibold ${activity === 'walk' ? 'bg-forest text-white' : 'bg-white text-forest ring-1 ring-ink/15'}`}>
+                  <Footprints size={16} /> Long walk
+                </button>
+                <button type="button" role="radio" aria-checked={activity === 'swim'} data-activity="swim" onClick={() => pick('swim')}
+                  className={`flex min-h-[48px] items-center justify-center gap-1.5 rounded-xl text-sm font-semibold ${activity === 'swim' ? 'bg-water text-white' : 'bg-white text-water ring-1 ring-water/30'}`}>
+                  <WavesHorizontal size={16} /> Swim
+                </button>
+              </div>
+              <p className="mt-1 text-xs text-ink/60">{SWIM_HINT} A swim is logged on its own and does not count toward your walking km.</p>
+            </div>
+          )}
 
           {done ? (
             <div className="mt-4 flex items-center gap-3 rounded-2xl bg-sage p-4">
@@ -116,7 +139,7 @@ export function WalkSheet({ id, diary, today, onClose }: { id: string; diary: Di
           )}
 
           <div className="mt-6 space-y-5">
-            <Field label="Actual distance walked (km)" htmlFor="km">
+            {!swim && <Field label="Actual distance walked (km)" htmlFor="km">
               <div className="flex items-center gap-2">
                 <button type="button" onClick={() => step(-0.5)} aria-label="Half a kilometre less"
                   className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-white text-xl font-bold text-forest ring-1 ring-ink/15">-</button>
@@ -131,7 +154,7 @@ export function WalkSheet({ id, diary, today, onClose }: { id: string; diary: Di
                   : diff < 0 ? <span>{formatKm(-diff)} km less than planned.</span>
                   : <span>Change it if you walked a different distance. Your totals use what you actually walked.</span>}
               </p>
-            </Field>
+            </Field>}
 
             <div>
               <span className="mb-1.5 block text-sm font-semibold text-forest">Duration</span>

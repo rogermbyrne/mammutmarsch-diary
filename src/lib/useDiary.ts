@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { emptyData, loadData, saveData, type AppData, type Entry } from './storage'
-import { SESSION_BY_ID } from './plan'
+import { emptyData, loadData, saveData, type Activity, type AppData, type Entry } from './storage'
+import { completeEntry, setEntryActivity, uncompleteEntry } from './entries'
 import { todayBerlin } from './dates'
 import { celebrationFor } from './stats'
 import { celebrate, currentOrigin, trackPointer } from './celebrate'
@@ -49,28 +49,14 @@ export function useDiary() {
     })
   }, [update])
 
-  const complete = useCallback((id: string) => {
+  const complete = useCallback((id: string, activity: Activity = 'walk') => {
     pending.current.set(id, currentOrigin())
-    update((d) => {
-      const prev: Entry = d.entries[id] ?? { completed: false }
-      const s = SESSION_BY_ID[id]
-      return {
-        ...d,
-        entries: {
-          ...d.entries,
-          [id]: { ...prev, completed: true, completedAt: new Date().toISOString(), actualKm: prev.actualKm ?? s.plannedKm },
-        },
-      }
-    })
+    update((d) => completeEntry(d, id, activity))
   }, [update])
 
-  const uncomplete = useCallback((id: string) => {
-    update((d) => {
-      const prev = d.entries[id]
-      if (!prev) return d
-      return { ...d, entries: { ...d.entries, [id]: { ...prev, completed: false, completedAt: undefined } } }
-    })
-  }, [update])
+  const setActivity = useCallback((id: string, activity: Activity) => update((d) => setEntryActivity(d, id, activity)), [update])
+
+  const uncomplete = useCallback((id: string) => update((d) => uncompleteEntry(d, id)), [update])
 
   const toggle = useCallback((id: string) => {
     if (data.entries[id]?.completed) uncomplete(id)
@@ -85,7 +71,7 @@ export function useDiary() {
   const replaceAll = useCallback((next: AppData) => setData({ ...next }), [])
   const reset = useCallback(() => setData(emptyData()), [])
 
-  return { data, error, setError, setEntry, complete, uncomplete, toggle, setName, setWeekNote, markSeen, replaceAll, reset }
+  return { data, error, setError, setEntry, complete, setActivity, uncomplete, toggle, setName, setWeekNote, markSeen, replaceAll, reset }
 }
 
 export type Diary = ReturnType<typeof useDiary>

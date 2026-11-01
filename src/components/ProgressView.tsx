@@ -1,8 +1,11 @@
-import { Award, Clock, Flame, Footprints, Lock, Mountain, Route, Timer, TrendingUp } from 'lucide-react'
+import { Award, Clock, Flame, Footprints, Lock, Mountain, Route, Timer, TrendingUp, WavesHorizontal } from 'lucide-react'
 import { Bar, BarChart, CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { EVENT_KM } from '../lib/plan'
 import { monthName } from '../lib/dates'
-import { computeStats, formatDuration, formatKm, longWalkChart, longWalkPace, milestones, monthlyTotals, weeklyChart } from '../lib/stats'
+import { computeStats, formatDuration, formatKm, longWalkChart, longWalkPace, milestones, monthlyTotals, swimStats, swimsCrowdingLongWalks, weeklyChart } from '../lib/stats'
+import { formatShort } from '../lib/dates'
+import { SWIM_ELIGIBLE_SESSIONS } from '../lib/plan'
+import { SwimCrowdingNote } from './TodayView'
 import type { Diary } from '../lib/useDiary'
 import { Card, SectionTitle } from './ui'
 
@@ -17,6 +20,7 @@ export function ProgressView({ diary, today }: { diary: Diary; today: string }) 
   const pace = longWalkPace(data)
   const months = monthlyTotals(data)
   const unlocked = ms.filter((m) => m.unlocked).length
+  const swims = swimStats(data, today)
 
   return (
     <div className="pt-safe px-4">
@@ -31,6 +35,21 @@ export function ProgressView({ diary, today }: { diary: Diary; today: string }) 
         <StatTile Icon={Flame} value={`${st.streak}`} label={st.streak === 1 ? 'Walk streak' : 'Walks in a row'} />
         <StatTile Icon={TrendingUp} value={`${st.percent}%`} label="Plan completed" />
       </div>
+
+      <SectionTitle>Swim-or-walk Saturdays</SectionTitle>
+      <Card className="p-4">
+        <div className="flex items-center gap-3" data-testid="swim-stats">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-water-soft text-water"><WavesHorizontal size={22} /></span>
+          <div className="min-w-0">
+            <p className="font-bold text-forest"><span data-testid="swim-count">{swims.swims}</span> {swims.swims === 1 ? 'swim' : 'swims'} · {swims.longWalks} long {swims.longWalks === 1 ? 'walk' : 'walks'}</p>
+            <p className="text-sm text-ink/60">On the {SWIM_ELIGIBLE_SESSIONS.length} Saturdays where you can swim instead (every other Saturday from {formatShort(SWIM_ELIGIBLE_SESSIONS[0].date)}).</p>
+          </div>
+        </div>
+        {swims.swimDates.length > 0 && (
+          <p className="mt-3 text-sm text-ink/70">Swims: {swims.swimDates.map((d) => formatShort(d)).join(', ')}</p>
+        )}
+        {swimsCrowdingLongWalks(data) && <SwimCrowdingNote />}
+      </Card>
 
       <SectionTitle>Weekly distance</SectionTitle>
       <Card className="p-3 pt-4">

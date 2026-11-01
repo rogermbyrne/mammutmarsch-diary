@@ -1,9 +1,12 @@
-import { Check, Flag, Mountain } from 'lucide-react'
+import { Check, Flag, Mountain, WavesHorizontal } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { formatShort } from '../lib/dates'
-import { TYPE_LABEL, type Session } from '../lib/plan'
-import { effectiveDate, formatKm, kmFor, statusOf, type Status } from '../lib/stats'
-import type { AppData } from '../lib/storage'
+import { SWIM_LABEL, TYPE_LABEL, isSwimEligible, type Session } from '../lib/plan'
+import { effectiveDate, formatKm, isSwim, kmFor, statusOf, type Status } from '../lib/stats'
+import type { AppData, Entry } from '../lib/storage'
+
+/** Label for what she did: "Swim" when a swim-or-walk Saturday was ticked as a swim, otherwise the planned walk. */
+export const sessionLabel = (s: Session, e: Entry | undefined): string => (isSwim(e) ? SWIM_LABEL : TYPE_LABEL[s.type])
 
 export function Card({ children, className = '' }: { children: ReactNode; className?: string }) {
   return <div className={`rounded-3xl bg-white shadow-soft ${className}`}>{children}</div>
@@ -26,7 +29,7 @@ export const STATUS_TEXT: Record<Status, string> = {
 }
 
 /** Round check button: one tap toggles completion. */
-export function CheckButton({ session, status, onToggle, size = 'md' }: { session: Session; status: Status; onToggle: () => void; size?: 'md' | 'lg' }) {
+export function CheckButton({ session, status, onToggle, size = 'md', label }: { session: Session; status: Status; onToggle: () => void; size?: 'md' | 'lg'; label?: string }) {
   const dim = size === 'lg' ? 'h-12 w-12' : 'h-11 w-11'
   const done = status === 'completed'
   const base = 'flex shrink-0 items-center justify-center rounded-full border-2 transition-colors'
@@ -44,7 +47,7 @@ export function CheckButton({ session, status, onToggle, size = 'md' }: { sessio
       type="button"
       role="checkbox"
       aria-checked={done}
-      aria-label={`${done ? 'Completed' : 'Mark complete'}: ${TYPE_LABEL[session.type]}, ${formatKm(session.plannedKm)} km`}
+      aria-label={`${done ? 'Completed' : 'Mark complete'}: ${label ?? TYPE_LABEL[session.type]}, ${formatKm(session.plannedKm)} km`}
       onClick={(e) => { e.stopPropagation(); onToggle() }}
       className={`${base} ${dim} ${cls}`}
     >
@@ -76,6 +79,8 @@ export function SessionRow({ session, data, today, onToggle, onOpen, showDate = 
   const entry = data.entries[session.id]
   const date = effectiveDate(session, data)
   const moved = entry?.rescheduledDate && entry.rescheduledDate !== session.date
+  const swam = isSwim(entry)
+  const swimOption = isSwimEligible(session) && status !== 'completed'
   const ring = session.isEvent
     ? 'bg-gradient-to-br from-forest to-[#245448] text-white'
     : status === 'completed'
@@ -93,9 +98,10 @@ export function SessionRow({ session, data, today, onToggle, onOpen, showDate = 
       onClick={onOpen}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen() } }}
       className={`flex min-h-[72px] w-full cursor-pointer items-center gap-3 rounded-2xl p-3 pr-4 text-left shadow-soft ${ring}`}
-      aria-label={`${TYPE_LABEL[session.type]} on ${formatShort(date)}, open details`}
+      aria-label={`${sessionLabel(session, entry)} on ${formatShort(date)}, open details`}
+      data-swim={swam ? 'true' : undefined}
     >
-      <CheckButton session={session} status={status} onToggle={onToggle} />
+      <CheckButton session={session} status={status} onToggle={onToggle} label={sessionLabel(session, entry)} />
       <div className="min-w-0 flex-1">
         {showDate && (
           <div className={`text-xs font-semibold uppercase tracking-wide ${sub}`}>
@@ -104,22 +110,30 @@ export function SessionRow({ session, data, today, onToggle, onOpen, showDate = 
         )}
         <div className={`truncate text-base font-semibold ${session.isEvent ? 'text-white' : status === 'completed' ? 'text-forest' : 'text-ink'}`}>
           {session.isEvent && <Mountain size={16} className="mr-1 inline -mt-0.5" />}
-          {TYPE_LABEL[session.type]}
+          {swam && <WavesHorizontal size={16} className="mr-1 inline -mt-0.5 text-water" />}
+          {sessionLabel(session, entry)}
         </div>
-        <div className="mt-1">
+        <div className="mt-1 flex flex-wrap items-center gap-1">
           {session.isEvent && status !== 'completed' ? (
             <span className="inline-flex rounded-full bg-lime px-2.5 py-0.5 text-xs font-bold text-forest">Event day</span>
           ) : (
             <StatusPill status={status} />
           )}
+          {swimOption && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-water-soft px-2.5 py-0.5 text-xs font-semibold text-water"><WavesHorizontal size={12} /> or swim</span>
+          )}
         </div>
       </div>
       <div className="shrink-0 text-right">
-        <div className={`text-xl font-bold ${session.isEvent ? 'text-lime' : 'text-forest'}`}>
-          {formatKm(status === 'completed' ? kmFor(session, entry) : session.plannedKm)}
-          <span className="ml-0.5 text-sm font-semibold">km</span>
-        </div>
-        {status === 'completed' && entry?.actualKm !== undefined && entry.actualKm !== session.plannedKm && (
+        {swam ? (
+          <div className="text-base font-bold text-water">Swam</div>
+        ) : (
+          <div className={`text-xl font-bold ${session.isEvent ? 'text-lime' : 'text-forest'}`}>
+            {formatKm(status === 'completed' ? kmFor(session, entry) : session.plannedKm)}
+            <span className="ml-0.5 text-sm font-semibold">km</span>
+          </div>
+        )}
+        {!swam && status === 'completed' && entry?.actualKm !== undefined && entry.actualKm !== session.plannedKm && (
           <div className={`text-xs ${sub}`}>plan {formatKm(session.plannedKm)}</div>
         )}
       </div>
