@@ -11,15 +11,16 @@ const plannedSnapshot = () => JSON.stringify(ALL_SESSIONS)
 const NOW = '2026-11-07T12:00:00.000Z'
 
 describe('swim-or-walk Saturdays: anchor and alternation', () => {
-  it('first eligible Saturday is Sat 7 Nov 2026, then every 14 days', () => {
+  it('first eligible Saturday is Sat 7 Nov 2026, then every 14 days, last is Sat 13 Feb 2027', () => {
     expect(SWIM_ANCHOR).toBe('2026-11-07')
     expect(SWIM_ELIGIBLE_SESSIONS[0].date).toBe('2026-11-07')
     expect(SWIM_ELIGIBLE_SESSIONS[0].id).toBe('w3-sat')
     expect(SWIM_ELIGIBLE_SESSIONS.map((s) => s.date)).toEqual([
       '2026-11-07', '2026-11-21', '2026-12-05', '2026-12-19', '2027-01-02',
-      '2027-01-16', '2027-01-30', '2027-02-13', '2027-02-27',
+      '2027-01-16', '2027-01-30', '2027-02-13',
     ])
-    expect(SWIM_ELIGIBLE_SESSIONS.map((s) => s.id)).toEqual(['w3-sat', 'w5-sat', 'w7-sat', 'w9-sat', 'w11-sat', 'w13-sat', 'w15-sat', 'w17-sat', 'w19-sat'])
+    expect(SWIM_ELIGIBLE_SESSIONS[SWIM_ELIGIBLE_SESSIONS.length - 1].date).toBe('2027-02-13')
+    expect(SWIM_ELIGIBLE_SESSIONS.map((s) => s.id)).toEqual(['w3-sat', 'w5-sat', 'w7-sat', 'w9-sat', 'w11-sat', 'w13-sat', 'w15-sat', 'w17-sat'])
   })
   it('Saturdays before 7 Nov, the in-between Saturdays, weekdays and the event are walk-only', () => {
     expect(isSwimEligible(SESSION_BY_ID['w1-sat'])).toBe(false) // 24 Oct
@@ -29,6 +30,8 @@ describe('swim-or-walk Saturdays: anchor and alternation', () => {
     expect(isSwimEligible(SESSION_BY_ID['w3-tue'])).toBe(false)
     expect(isSwimEligible(SESSION_BY_ID['w3-thu'])).toBe(false)
     expect(isSwimEligible(SESSION_BY_ID['event'])).toBe(false)
+    expect(SESSION_BY_ID['w19-sat'].date).toBe('2027-02-27')
+    expect(isSwimEligible(SESSION_BY_ID['w19-sat'])).toBe(false) // final long walk is walk-only
     // every eligible session is a planned Saturday long walk
     for (const s of SWIM_ELIGIBLE_SESSIONS) expect(s.type).toBe('long')
   })
@@ -74,8 +77,17 @@ describe('swim choice', () => {
     expect(sw).toMatchObject({ swims: 1, longWalks: 0, eligibleSoFar: 1, swimDates: ['2026-11-07'] })
     expect(celebrationFor('w3-sat', completeEntry(emptyData(), 'w3-tue', 'walk', NOW), d).text ?? '').not.toMatch(/longest/i)
   })
-  it('a swim on the final long walk does not unlock the final long walk milestone', () => {
+  it('Sat 27 Feb (final long walk) offers no swim: a swim tick logs the long walk', () => {
     const d = completeEntry(emptyData(), 'w19-sat', 'swim', NOW)
+    expect(d.entries['w19-sat']).toMatchObject({ completed: true, actualKm: 12 })
+    expect(d.entries['w19-sat'].activity).toBeUndefined()
+    expect(setEntryActivity(d, 'w19-sat', 'swim')).toBe(d)
+    expect(milestones(d).find((m) => m.id === 'finallong')!.unlocked).toBe(true)
+  })
+  it('a swim already saved on Sat 27 Feb is left as she logged it', () => {
+    const old = { version: 1, displayName: '', entries: { 'w19-sat': { completed: true, activity: 'swim' } }, weekNotes: {}, seenMilestones: [] }
+    const d = validateData(old)
+    expect(d.entries['w19-sat']).toMatchObject({ completed: true, activity: 'swim' })
     expect(milestones(d).find((m) => m.id === 'finallong')!.unlocked).toBe(false)
   })
 })

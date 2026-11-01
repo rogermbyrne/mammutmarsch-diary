@@ -83,6 +83,20 @@ s = await stored(p)
 if (s.entries['w5-sat']?.activity !== undefined || s.entries['w5-sat'].actualKm !== 10) fail('switching back to the walk failed')
 await p.close()
 
+// 2b) Sat 27 Feb 2027 (final long walk): walk-only, no swim option; Sat 13 Feb is the last swim Saturday.
+p = await open('2027-02-27T09:00:00+01:00', OLD)
+if (await p.$('[data-testid="swim-instead"]')) fail('swim option shown on Sat 27 Feb (final long walk)')
+if (!(await text(p)).includes('Long endurance walk')) fail('Sat 27 Feb should show the long walk')
+await nav(p, 'Diary')
+if ((await text(p)).includes('or swim')) fail('week 19 (27 Feb) should be walk-only in the diary')
+await p.click('button[aria-label="Previous week"]'); await sleep(200)
+await p.click('button[aria-label="Previous week"]'); await sleep(200)
+if (!(await text(p)).includes('or swim')) fail('week 17 (13 Feb) should offer the swim')
+await p.close()
+p = await open('2027-02-13T09:00:00+01:00', OLD)
+if (!(await p.$('[data-testid="swim-instead"]'))) fail('no swim option on Sat 13 Feb')
+await p.close()
+
 // 3) Crowding: 3 eligible swims in a row and no long walk in between shows the note; alternating does not.
 const crowd = { ...OLD, entries: { ...OLD.entries, 'w3-sat': { completed: true, activity: 'swim' }, 'w5-sat': { completed: true, activity: 'swim' }, 'w7-sat': { completed: true, activity: 'swim' } } }
 p = await open('2026-12-06T09:00:00+01:00', crowd)

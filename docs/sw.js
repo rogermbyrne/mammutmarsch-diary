@@ -1,6 +1,6 @@
 /* My Mammutmarsch Diary service worker: offline support after first visit. */
-const CACHE = 'mammut-mvxmv9pi'
-const PRECACHE = ["./","index.html","manifest.webmanifest","icon-192.png","icon-512.png","apple-touch-icon.png","favicon.svg","assets/index-BWpUHJ7d.css","assets/index-DWBc5Qir.js"]
+const CACHE = 'mammut-mvxn449o'
+const PRECACHE = ["./","index.html","manifest.webmanifest","icon-192.png","icon-512.png","apple-touch-icon.png","favicon.svg","assets/index-BWpUHJ7d.css","assets/index-2PvDhMI1.js"]
 
 self.addEventListener('install', (event) => {
   event.waitUntil(

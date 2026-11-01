@@ -1,5 +1,5 @@
 import { isValidISO } from './dates'
-import { SESSION_BY_ID, TOTAL_WEEKS, isSwimEligible } from './plan'
+import { FINAL_LONG_ID, SESSION_BY_ID, TOTAL_WEEKS, isSwimEligible } from './plan'
 
 export type Difficulty = 'easy' | 'moderate' | 'hard'
 /** What she did for a session. Missing means the planned walk (all data saved before swims existed). */
@@ -63,7 +63,8 @@ export function validateData(raw: unknown): AppData {
       footIssues: str(x.footIssues),
       rescheduledDate: isValidISO(x.rescheduledDate) ? x.rescheduledDate : undefined,
     }
-    if (x.activity === 'swim' && isSwimEligible(SESSION_BY_ID[id])) entries[id].activity = 'swim'
+    // A swim already saved on the final long walk (offered briefly on 1 Nov 2026) is kept as she logged it; new ones cannot be made.
+    if (x.activity === 'swim' && (isSwimEligible(SESSION_BY_ID[id]) || id === FINAL_LONG_ID)) entries[id].activity = 'swim'
   }
   const weekNotes: Record<string, string> = {}
   if (src.weekNotes && typeof src.weekNotes === 'object') {

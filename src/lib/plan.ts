@@ -99,17 +99,19 @@ export function weekForDate(d: ISODate): number {
 }
 
 // Swim option: every other Saturday long walk can be swapped for a swim, by her choice.
-// The first eligible Saturday is Sat 7 Nov 2026 (week 3), then every 14 days (21 Nov, 5 Dec, ...).
-// Saturdays before 7 Nov and the in-between Saturdays stay walk-only. The long walk stays the planned
+// The first eligible Saturday is Sat 7 Nov 2026 (week 3), then every 14 days (21 Nov, 5 Dec, ...), and the last
+// is Sat 13 Feb 2027. Saturdays before 7 Nov, the in-between Saturdays and the final long walk (Sat 27 Feb 2027,
+// week 19) stay walk-only. The long walk stays the planned
 // default; picking a swim never changes the plan or any later distance.
 export const SWIM_ANCHOR: ISODate = '2026-11-07'
 export const SWIM_EVERY_DAYS = 14
+export const SWIM_LAST: ISODate = '2027-02-13'
 export const SWIM_LABEL = 'Swim'
 export const SWIM_HINT = 'Swim instead of the long walk today if you like. The plan stays the same either way.'
 
 /** True for a planned Saturday long walk (by its original date) that offers the swim choice. */
 export function isSwimEligible(s: Session): boolean {
-  if (s.isEvent || s.type !== 'long' || s.date < SWIM_ANCHOR) return false
+  if (s.isEvent || s.type !== 'long' || s.date < SWIM_ANCHOR || s.date > SWIM_LAST) return false
   return daysBetween(SWIM_ANCHOR, s.date) % SWIM_EVERY_DAYS === 0
 }
 
