@@ -24,7 +24,7 @@ export interface Week {
 
 // Andrea's plan (handwritten, Nov 2026), built around a knee and a hip that need care:
 // a long walk every other Saturday (odd weeks 3 to 17), a "maybe swimming" Saturday in the weeks between (even weeks 4 to 16),
-// and no Saturday long walk in weeks 18 and 19 (rest and taper). Tue and Thu walks are unchanged.
+// and no Saturday long walk in weeks 18 and 19 (rest and taper). Tue and Thu walks are capped at 5 km.
 // Week 1 is a short intro week (Sat 17 Oct to Sun 25 Oct 2026) with a single 10 km long walk on Sat 24 Oct.
 // Weeks 2 to 20 are Monday-anchored from WEEK2_START.
 export const TRAINING_START: ISODate = '2026-10-17'
@@ -36,12 +36,15 @@ export const EVENT_KM = 42
 export const TOTAL_WEEKS = 20
 export const TAPER_WEEKS = [17, 18, 19]
 
-// [Tuesday, Thursday] km for weeks 2-19 (unchanged from the first plan); week 20 has Tue/Thu + the event.
-const WEEKDAY_KM: [number, number][] = [
+// [Tuesday, Thursday] km for weeks 2-19 from the first plan; week 20 has Tue/Thu + the event.
+const FIRST_PLAN_WEEKDAY_KM: [number, number][] = [
   [4, 5], [5, 5], [5, 6], [4, 5], [5, 7], [6, 7],
   [6, 8], [4, 6], [6, 8], [6, 8], [7, 9], [5, 6],
   [7, 9], [7, 10], [5, 7], [7, 10], [5, 7], [4, 5],
 ]
+/** No weekday walk is planned longer than this (Roger, 3 Nov 2026). */
+export const WEEKDAY_MAX_KM = 5
+const WEEKDAY_KM: [number, number][] = FIRST_PLAN_WEEKDAY_KM.map(([a, b]) => [Math.min(a, WEEKDAY_MAX_KM), Math.min(b, WEEKDAY_MAX_KM)])
 /** Saturday long walks by week. Weeks not listed (4 to 16 even) are swim Saturdays; 18 and 19 have no Saturday session. */
 export const LONG_WALK_KM: Record<number, number> = { 2: 12, 3: 15, 5: 18, 7: 21, 9: 24, 11: 27, 13: 30, 15: 33, 17: 13 }
 export const SWIM_WEEKS = [4, 6, 8, 10, 12, 14, 16]

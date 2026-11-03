@@ -6,11 +6,11 @@ import { emptyData, loadData, saveData, STORAGE_KEY, validateData, exportPayload
 
 // Weeks 2 to 20: [Tue, Thu, Sat] planned km. Sat is 0 on a swim Saturday (no walk planned); weeks 18 and 19 have no Saturday.
 const EXPECTED: [string, number[]][] = [
-  ['2026-10-26', [4, 5, 12]], ['2026-11-02', [5, 5, 15]], ['2026-11-09', [5, 6, 0]], ['2026-11-16', [4, 5, 18]],
-  ['2026-11-23', [5, 7, 0]], ['2026-11-30', [6, 7, 21]], ['2026-12-07', [6, 8, 0]], ['2026-12-14', [4, 6, 24]],
-  ['2026-12-21', [6, 8, 0]], ['2026-12-28', [6, 8, 27]], ['2027-01-04', [7, 9, 0]], ['2027-01-11', [5, 6, 30]],
-  ['2027-01-18', [7, 9, 0]], ['2027-01-25', [7, 10, 33]], ['2027-02-01', [5, 7, 0]], ['2027-02-08', [7, 10, 13]],
-  ['2027-02-15', [5, 7]], ['2027-02-22', [4, 5]], ['2027-03-01', [3, 3, 42]],
+  ['2026-10-26', [4, 5, 12]], ['2026-11-02', [5, 5, 15]], ['2026-11-09', [5, 5, 0]], ['2026-11-16', [4, 5, 18]],
+  ['2026-11-23', [5, 5, 0]], ['2026-11-30', [5, 5, 21]], ['2026-12-07', [5, 5, 0]], ['2026-12-14', [4, 5, 24]],
+  ['2026-12-21', [5, 5, 0]], ['2026-12-28', [5, 5, 27]], ['2027-01-04', [5, 5, 0]], ['2027-01-11', [5, 5, 30]],
+  ['2027-01-18', [5, 5, 0]], ['2027-01-25', [5, 5, 33]], ['2027-02-01', [5, 5, 0]], ['2027-02-08', [5, 5, 13]],
+  ['2027-02-15', [5, 5]], ['2027-02-22', [4, 5]], ['2027-03-01', [3, 3, 42]],
 ]
 
 describe('plan', () => {
@@ -76,10 +76,10 @@ describe('plan', () => {
   })
   it('planned weekly km leave the swim Saturdays out', () => {
     expect(weekTotals(emptyData(), 3).plannedKm).toBe(25)
-    expect(weekTotals(emptyData(), 4).plannedKm).toBe(11)
-    expect(weekTotals(emptyData(), 15).plannedKm).toBe(50)
-    expect(weekTotals(emptyData(), 18).plannedKm).toBe(12)
-    expect(Math.max(...WEEKS.map((w) => weekTotals(emptyData(), w.number).plannedKm))).toBe(50)
+    expect(weekTotals(emptyData(), 4).plannedKm).toBe(10)
+    expect(weekTotals(emptyData(), 15).plannedKm).toBe(43)
+    expect(weekTotals(emptyData(), 18).plannedKm).toBe(10)
+    expect(Math.max(...WEEKS.map((w) => weekTotals(emptyData(), w.number).plannedKm))).toBe(43)
   })
   it('Berlin today handles late-evening UTC', () => {
     expect(todayBerlin(new Date('2026-12-31T23:30:00Z'))).toBe('2027-01-01')
